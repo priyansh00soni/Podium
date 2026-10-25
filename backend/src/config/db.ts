@@ -25,3 +25,8 @@ export async function connectDb(): Promise<void> {
     process.exit(1);
   }
 }
+
+export async function disconnectDb(): Promise<void> {
+  await prisma.$disconnect();
+  await pool.end();
+}
