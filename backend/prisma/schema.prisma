@@ -12,3 +12,243 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum PlatformRole {
+  admin
+}
+
+enum ParticipantRole {
+  participant
+  moderator
+}
+
+enum ProblemStatus {
+  active
+  voided
+}
+
+enum Language {
+  c
+  cpp
+  java
+  javascript
+  python
+}
+
+enum SubmissionStatus {
+  queued
+  judging
+  done
+}
+
+enum Verdict {
+  accepted
+  wrong_answer
+  tle
+  runtime_error
+  compile_error
+  judge_error
+}
+
+enum EventType {
+  // Integrity types
+  visibility_hidden
+  fullscreen_exit
+  paste_blocked
+  permission_denied
+  camera_stopped
+  screenshare_stopped
+  // Standard types
+  login
+  session_replaced
+  submit
+  verdict
+  judge_error
+  // Staff types 
+  problem_voided
+  broadcast_sent
+  contest_started
+  contest_ended
+  submission_rejudged
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  name         String
+  platformRole PlatformRole?
+  createdAt    DateTime      @default(now())
+
+  participants ContestParticipant[]
+  sessions     Session[]
+  broadcasts   Broadcast[]
+  @@map("users")
+}
+
+model Contest {
+  id                   String   @id @default(uuid())
+  slug                 String   @unique
+  title                String
+  startsAt             DateTime
+  endsAt               DateTime
+  leaderboardPublished Boolean  @default(false)
+  createdAt            DateTime @default(now())
+
+  allowedEmails AllowedEmail[]
+  participants  ContestParticipant[]
+  sessions      Session[]
+  problems      Problem[]
+  broadcasts    Broadcast[]
+  submissions   Submission[]
+  points        Point[]
+  events        Event[]
+    @@map("contests")
+}
+
+model AllowedEmail {
+  contestId  String
+  email      String
+  name       String?
+  rollNumber String?
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+
+  @@id([contestId, email])
+  @@map("allowed_emails")
+}
+
+model ContestParticipant {
+  id              String           @id @default(uuid())
+  contestId       String
+  userId          String
+  role            ParticipantRole
+  activeSessionId String?
+  disqualifiedAt  DateTime?
+  deletedAt       DateTime?
+  joinedAt        DateTime         @default(now())
+
+  contest       Contest  @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeSession Session? @relation("ActiveSession", fields: [activeSessionId], references: [id], onDelete: SetNull)
+  
+  submissions Submission[]
+  points      Point[]
+  events      Event[]
+
+  @@unique([contestId, userId])
+  @@unique([contestId, id])
+  @@map("contest_participants")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  contestId String
+  userId    String
+  ip        String
+  userAgent String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  activeForParticipants ContestParticipant[] @relation("ActiveSession")
+
+  @@map("sessions")
+}
+
+model Problem {
+  id        String        @id @default(uuid())
+  contestId String
+  number    Int
+  title     String
+  statement String
+  points    Int
+  type      String        @default("coding")
+  status    ProblemStatus @default(active)
+  voidedAt  DateTime?
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+
+  submissions Submission[]
+  pointsTally Point[]
+
+  @@unique([contestId, id])
+  @@unique([contestId, number])
+  @@map("problems")
+}
+
+model Submission {
+  id             String           @id @default(uuid())
+  contestId      String
+  participantId  String
+  problemId      String
+  language       Language
+  code           String           @db.Text
+  submissionHash String
+  status         SubmissionStatus @default(queued)
+  verdict        Verdict?
+  clickedAt      DateTime
+  judgedAt       DateTime?
+  createdAt      DateTime         @default(now())
+
+  contest     Contest            @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  participant ContestParticipant @relation(fields: [contestId, participantId], references: [contestId, id], onDelete: Restrict)
+  problem     Problem            @relation(fields: [contestId, problemId], references: [contestId, id], onDelete: Restrict)
+  
+  events Event[]
+
+  @@unique([contestId, submissionHash])
+  @@unique([contestId, id])
+  @@index([contestId, participantId, problemId, createdAt])
+  @@map("submissions")
+}
+
+model Point {
+  id            String   @id @default(uuid())
+  contestId     String
+  participantId String
+  problemId     String
+  points        Int
+  solveTime     DateTime
+
+  contest     Contest            @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  participant ContestParticipant @relation(fields: [contestId, participantId], references: [contestId, id], onDelete: Restrict)
+  problem     Problem            @relation(fields: [contestId, problemId], references: [contestId, id], onDelete: Restrict)
+
+  @@unique([contestId, participantId, problemId])
+  @@map("points")
+}
+
+model Event {
+  id            BigInt    @id @default(autoincrement())
+  contestId     String
+  participantId String?
+  userId        String?
+  eventType     EventType
+  submissionId  String?
+  metadata      Json      @default("{}")
+  createdAt     DateTime  @default(now())
+
+  contest     Contest             @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  participant ContestParticipant? @relation(fields: [participantId], references: [id], onDelete: Restrict)
+  submission  Submission?         @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+
+  @@index([contestId, participantId, createdAt])
+  @@index([contestId, eventType, createdAt])
+  @@map("events")
+}
+
+model Broadcast {
+  id              String   @id @default(uuid())
+  contestId       String
+  message         String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  creator User    @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([contestId, createdAt])
+  @@map("broadcasts")
+}
