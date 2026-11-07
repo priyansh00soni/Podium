@@ -1,6 +1,7 @@
 import { Verdict } from "../../generated/prisma/enums.js";
 
-const JUDGE0_LANGUAGE_IDS: Record<string, number> = {
+// Replaced Record<string, number> with standard object bracket notation
+const JUDGE0_LANGUAGE_IDS: { [key: string]: number } = {
     c: 50,
     cpp: 54,
     java: 62,
@@ -26,7 +27,7 @@ export async function runTests(
     language: string, 
     tests: any[], 
     limits: { time: number; memory: number }
-): Promise<Verdict> {
+) {
     const judgeUrl = process.env.JUDGE_URL;
     const authToken = process.env.JUDGE_AUTH_TOKEN;
 
@@ -34,8 +35,7 @@ export async function runTests(
         throw new Error("JUDGE_URL environment variable is not set.");
     }
 
-    // Typed as a plain record to allow dynamic index assignment
-    const headers: Record<string, string> = {
+    const headers: { [key: string]: string } = {
         "Content-Type": "application/json",
     };
     if (authToken) {
@@ -49,8 +49,7 @@ export async function runTests(
     const submissions = tests.map(test => ({
         language_id: languageId,
         source_code: base64Code,
-        stdin: test.input!==undefined ? Buffer.from(test.input).toString("base64") : null,
-        // Assuming test files are trimmed upon creation to address whitespace differences
+        stdin: test.input !== undefined ? Buffer.from(test.input).toString("base64") : null,
         expected_output: test.expectedOutput !== undefined ? Buffer.from(test.expectedOutput).toString("base64") : null,
         cpu_time_limit: limits.time,
         memory_limit: limits.memory * 1024,
@@ -69,7 +68,7 @@ export async function runTests(
     const createData = await createRes.json();
     const tokens = createData.map((t: { token: string }) => t.token).join(",");
 
-    // 2. Poll until all tests leave status 1 and 2, with a hard deadline
+    // 2. Poll until all tests leave status 1 and 2, with a hard deadline, Status 1 means "In Queue" and 2 means "Processing".
     let isProcessing = true;
     let results: any[] = [];
     const deadline = Date.now() + 120_000;
@@ -91,7 +90,7 @@ export async function runTests(
         const pollData = await pollRes.json();
         results = pollData.submissions;
         
-        isProcessing = results.some((sub: any) => sub.status_id <= 2);
+        isProcessing = results.some((sub: any) => sub.status_id <= 2); //Status 1 means "In Queue" and 2 means "Processing".
     }
 
     // 3 & 4. Map results and prioritize severity

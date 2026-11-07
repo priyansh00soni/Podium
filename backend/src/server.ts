@@ -8,7 +8,7 @@ let shuttingDown = false;
 
 await connectDb();
 await startQueue();
-await startJudgeWorker(); // Added: Starts the worker loop to pick up judge jobs
+await startJudgeWorker(); 
 
 const server = app.listen(process.env.PORT || 8000, () => {
   logger.info(`App listens at port: ${process.env.PORT || 8000}`);

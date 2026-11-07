@@ -11,26 +11,34 @@ const HARD_TIMEOUT_MS = 120 * 1000;
 
 export async function startJudgeWorker() {
     await boss.work("judge-submission", { teamConcurrency: 4, batchSize: 1 }, async (jobs) => {
+
+        // 1. Get the single job from the array
         const job = jobs[0];
-        if (!job) return;
+        if (!job) return
 
-        const { submissionId } = job.data as { submissionId: string };
+        const data = job.data as any;
+        const submissionId = String(data.submissionId);
 
+        // 2. Load the submission and problem from the database
         const submission = await prisma.submission.findUnique({
             where: { id: submissionId },
             include: { problem: true }
         });
 
-        if (!submission) return;
+        if (!submission) {
+            return;
+        }
 
         let timerId: NodeJS.Timeout | undefined;
 
         try {
+            // 3. Mark as judging so the user sees the loading spinner
             await prisma.submission.update({
                 where: { id: submissionId },
                 data: { status: "judging" }
             });
 
+            // 4. Load the test cases from the disk
             const testsPath = path.join(process.cwd(), "data", "tests", `${submission.problemId}.json`);
             let tests: any[] = [];
             
@@ -45,28 +53,37 @@ export async function startJudgeWorker() {
                 throw new Error("No tests available for this problem.");
             }
 
-            // Using string literal to match the Prisma enum type internally if needed
+            // 5. Get the time and memory limits for this specific language
             const limits = getLanguageLimits(submission.language);
             
-            const timeoutPromise = new Promise<never>((_, reject) => {
-                timerId = setTimeout(() => reject(new Error("Judge hard timeout reached (120s)")), HARD_TIMEOUT_MS);
+            // 6. Setup the 120-second hard timeout timer
+            const timeoutPromise = new Promise((resolve, reject) => {
+                timerId = setTimeout(() => {
+                    const timeoutError = new Error("Judge hard timeout reached (120s)");
+                    reject(timeoutError);
+                }, HARD_TIMEOUT_MS);
             });
 
+            // 7. Run the tests, but abort if the 120-second timer finishes first
             const verdict = await Promise.race([
                 runTests(submission.code, submission.language, tests, limits),
                 timeoutPromise
             ]);
 
+            // 8. Save the final results to the database atomically
             await prisma.$transaction(async (tx) => {
+                
+                // Update the submission status
                 await tx.submission.update({
                     where: { id: submissionId },
                     data: {
                         status: "done",
-                        verdict,
+                        verdict: verdict as any, // Cast prevents strict enum mismatches
                         judgedAt: new Date()
                     }
                 });
 
+                // Award points if they got it right
                 if (verdict === "accepted") {
                     const existingPoint = await tx.point.findUnique({
                         where: {
@@ -91,22 +108,29 @@ export async function startJudgeWorker() {
                     }
                 }
 
+                // Create the audit event (safely formatting the metadata for Prisma JSON)
+                const successMetadata = { finalVerdict: String(verdict) };
+                
                 await tx.event.create({
                     data: {
                         contestId: submission.contestId,
                         participantId: submission.participantId,
                         eventType: "verdict",
                         submissionId: submission.id,
-                        metadata: { verdict } 
+                        metadata: successMetadata 
                     }
                 });
             });
 
         } catch (error: any) {
-            judgeLogger.error(`Judge execution error: ${error instanceof Error ? error.name : "unknown"}`);
+            // 9. If ANYTHING fails (network, missing files, timeouts), handle it safely
+            const errorName = error instanceof Error ? error.name : "unknown";
+            judgeLogger.error(`Judge execution error: ${errorName}`);
             
             try {
+                // Safely mark the submission as a judge_error so the student isn't stuck
                 await prisma.$transaction(async (tx) => {
+                    
                     await tx.submission.update({
                         where: { id: submissionId },
                         data: {
@@ -116,21 +140,29 @@ export async function startJudgeWorker() {
                         }
                     });
 
+                    // Format error metadata safely for Prisma JSON
+                    const errorMetadata = { errorMessage: errorName };
+
                     await tx.event.create({
                         data: {
                             contestId: submission.contestId,
                             participantId: submission.participantId,
                             eventType: "judge_error",
                             submissionId: submission.id,
-                            metadata: { error: error instanceof Error ? error.name : "Unknown error" }
+                            metadata: errorMetadata
                         }
                     });
                 });
             } catch (fallbackError: any) {
-                judgeLogger.error(`Judge worker fallback failed: ${fallbackError instanceof Error ? fallbackError.name : "unknown"}`);
+                const fallbackName = fallbackError instanceof Error ? fallbackError.name : "unknown";
+                judgeLogger.error(`Judge worker fallback failed: ${fallbackName}`);
             }
+            
         } finally {
-            if (timerId) clearTimeout(timerId);
+            // 10. Always clear the timeout timer so it doesn't leak memory
+            if (timerId) {
+                clearTimeout(timerId);
+            }
         }
     });
 }
