@@ -1,7 +1,7 @@
 import app from "./app.js";
 import { connectDb, disconnectDb } from "./config/db.js";
 import { logger } from "./utils/logger.js";
-import { startQueue, stopQueue } from "./worker/queue.js";
+import { startQueue, stopQueue } from "./config/queue.js";
 
 let shuttingDown = false;
 
