@@ -5,7 +5,7 @@ import { findSession } from "./auth.service.js";
 import ApiError from "../../utils/ApiError.js";
 import { prisma } from "../../config/db.js";
 
-const requireSession = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+const authMid = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const sessionId = req.cookies.sessionId;
     const slug = req.params.slug as string;
 
@@ -26,4 +26,4 @@ const requireSession = asyncHandler(async (req: Request, res: Response, next: Ne
     next();
 });
 
-export default requireSession;
+export default authMid;
