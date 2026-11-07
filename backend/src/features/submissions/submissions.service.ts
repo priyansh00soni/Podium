@@ -99,9 +99,12 @@ const submitCode = async (
             await boss.send(
                 "judge-submission", 
                 { submissionId: newSubmission.id }, 
-                { db: fromPrisma(tx) }
+                { 
+                    db: fromPrisma(tx),
+                    retryLimit: 0,
+                    expireInSeconds: 180 
+                }
             );
-
             return newSubmission;
         });
 

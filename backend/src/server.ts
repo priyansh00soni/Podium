@@ -2,11 +2,13 @@ import app from "./app.js";
 import { connectDb, disconnectDb } from "./config/db.js";
 import { logger } from "./utils/logger.js";
 import { startQueue, stopQueue } from "./config/queue.js";
+import { startJudgeWorker } from "./features/judge/judge.worker.js";
 
 let shuttingDown = false;
 
 await connectDb();
 await startQueue();
+await startJudgeWorker(); // Added: Starts the worker loop to pick up judge jobs
 
 const server = app.listen(process.env.PORT || 8000, () => {
   logger.info(`App listens at port: ${process.env.PORT || 8000}`);
