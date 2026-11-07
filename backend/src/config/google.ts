@@ -11,4 +11,4 @@ export const googleClient = new OAuth2Client(
   GOOGLE_CLIENT_SECRET,
 );
 
-export const CALLBACK_URL = `${process.env.APP_URL}/auth/google/callback`;
+export const CALLBACK_URL = `${process.env.APP_URL}/api/v1/auth/google/callback`;

@@ -99,3 +99,15 @@ export async function runTests(
     
     return priority.find(v => found.has(v)) ?? "accepted";
 }
+
+// 1. const priority = [...]
+// This establishes the hierarchy of bad news. If the server itself crashes (judge_error), that is the most important thing to report. If the code won't even build (compile_error), that overrides a timeout (tle), and so on.
+
+// 2. const found = new Set(...)
+// This takes the 5 raw numeric results from Judge0, translates them into words, and removes the duplicates.
+// If the results were ["accepted", "tle", "accepted", "wrong_answer", "accepted"], this line shrinks it into a simple basket of unique results: { "accepted", "tle", "wrong_answer" }.
+
+// 3. return priority.find(...) ?? "accepted"
+// This reads the priority list from left to right, checking if each error exists in the student's basket:
+
+// If it checks the entire priority list and finds absolutely zero errors in the basket, the ?? "accepted" at the end catches it and awards a perfect score.
