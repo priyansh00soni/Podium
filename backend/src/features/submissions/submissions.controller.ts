@@ -1,23 +1,37 @@
 import type { Request, Response } from "express";
+import {  Language } from "../../generated/prisma/client.js";
 import asyncHandler from "../../utils/asyncHandler.js";
 import ApiError from "../../utils/ApiError.js";
 import { submitCode } from "./submissions.service.js";
+import {prisma} from "../../config/db.js";
 
-const VALID_LANGUAGES = ["c", "cpp", "java", "javascript", "python"];
 const MAX_CODE_SIZE_BYTES = 64 * 1024; // 64 KB
 
 const submitController = asyncHandler(async (req: Request, res: Response) => {
     const { problemId } = req.params;
     const { language, code } = req.body;
-    const membership = (req as any).membership; // Attached by requireSession middleware
+    const membership = (req as any).membership;
     const clickedAt = new Date();
+    
+    // Explicitly fetch the contest once
+    const contest = await prisma.contest.findUnique({
+        where: { id: membership.contestId }
+    });
 
-    // 1. Validate language
-    if (!language || !VALID_LANGUAGES.includes(language)) {
+    if (!contest) {
+        throw new ApiError(404, "Contest not found.");
+    }
+
+    if (!problemId) {
+        throw new ApiError(400, "Problem ID is required.");
+    }
+
+    // Validate language dynamically against the Prisma schema enum
+    if (!language || !Object.values(Language).includes(language as Language)) {
         throw new ApiError(400, "Invalid or unsupported programming language.");
     }
 
-    // 2. Validate code presence and size
+    // Validate code presence and size
     if (!code || typeof code !== "string" || code.trim().length === 0) {
         throw new ApiError(400, "Code cannot be empty.");
     }
@@ -26,13 +40,14 @@ const submitController = asyncHandler(async (req: Request, res: Response) => {
         throw new ApiError(400, "Code payload exceeds the 64 KB limit.");
     }
 
-    // 3. Process submission
     const submission = await submitCode(
         membership,
         problemId as string,
-        language as any,
+        language as Language,
         code,
-        clickedAt
+        clickedAt,
+        contest.startsAt,
+        contest.endsAt
     );
 
     return res.status(201).json({

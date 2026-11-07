@@ -1,76 +1,91 @@
-import { fromPrisma } from "pg-boss"; // pg-boss Prisma adapter for transactional enqueue
+
+import { fromPrisma } from "pg-boss";
 import {prisma} from "../../config/db.js";
 import { getContestState } from "../contest/contest.state.js";
 import { submissionHash } from "../../utils/normalize.js";
 import ApiError from "../../utils/ApiError.js";
-import { boss } from '../../config/queue.js'; 
-import { Prisma } from "../../generated/prisma/client.js";
+import { boss } from "../../config/queue.js"; 
+import { Prisma, Language } from "../../generated/prisma/client.js";
 
 const submitCode = async (
-    membership: any, // Populated from auth middleware
+    membership: any, 
     problemId: string,
-    language: "c" | "cpp" | "java" | "javascript" | "python",
+    language: Language,
     code: string,
-    clickedAt: Date
+    clickedAt: Date,
+    startsAt: Date,
+    endsAt: Date
 ) => {
-    // We need the contest details for state checking
-    const contest = await prisma.contest.findUnique({
-        where: { id: membership.contestId }
-    });
-    
-    if (!contest) throw new ApiError(404, "Contest not found.");
-
     // 1. Contest state is running
-    if (getContestState(contest.startsAt, contest.endsAt) !== "running") {
+    if (getContestState(startsAt, endsAt) !== "running") {
         throw new ApiError(403, "Contest is not currently active.");
     }
 
     // 2. The problem exists in this contest and is active
     const problem = await prisma.problem.findFirst({
-        where: { id: problemId, contestId: contest.id, status: "active" }
+        where: { id: problemId, contestId: membership.contestId, status: "active" }
     });
     
     if (!problem) {
         throw new ApiError(404, "Problem not found or inactive.");
     }
 
-    // 3. Rate limit: query submissions for this participant and problem in the last 10 seconds
-    const tenSecondsAgo = new Date(Date.now() - 10000);
-    const recentSubmission = await prisma.submission.findFirst({
-        where: {
-            participantId: membership.id,
-            problemId: problem.id,
-            createdAt: { gt: tenSecondsAgo }
-        },
-        orderBy: { createdAt: "desc" }
-    });
+    // 3. Compute the fingerprint and check for exact duplicates immediately
+    const fingerprint = submissionHash(membership.id, problem.id, language, code);
 
-    if (recentSubmission) {
-        const secondsLeft = Math.ceil((recentSubmission.createdAt.getTime() + 10000 - Date.now()) / 1000);
-        throw new ApiError(429, `Please wait ${secondsLeft} seconds before submitting again.`);
-    }
-
-    // 4. One pending action: reject if there is any submission queued or judging
-    const pendingSubmission = await prisma.submission.findFirst({
+    const existingSubmission = await prisma.submission.findUnique({
         where: {
-            participantId: membership.id,
-            status: { in: ["queued", "judging"] }
+            contestId_submissionHash: {
+                contestId: membership.contestId,
+                submissionHash: fingerprint
+            }
         }
     });
 
-    if (pendingSubmission) {
-        throw new ApiError(429, "You already have a submission in progress. Please wait for it to finish.");
+    if (existingSubmission) {
+        return existingSubmission; 
     }
 
-    // 5. Compute the fingerprint
-    const fingerprint = submissionHash(membership.id, problem.id, language, code);
-
+    // 4. Transaction with Row Lock to prevent rate-limit/pending race conditions
     try {
-        // 6. In one transaction: insert the submission row and send the job
         const submission = await prisma.$transaction(async (tx) => {
+            // Lock this participant's row so concurrent submits queue up behind each other
+            await tx.$queryRaw`SELECT id FROM contest_participants WHERE id = ${membership.id} FOR UPDATE`;
+
+            // Rate limit check running under the lock
+            const tenSecondsAgo = new Date(Date.now() - 10000);
+            const recentSubmission = await tx.submission.findFirst({
+                where: {
+                    contestId: membership.contestId,
+                    participantId: membership.id,
+                    problemId: problem.id,
+                    createdAt: { gt: tenSecondsAgo }
+                },
+                orderBy: { createdAt: "desc" }
+            });
+
+            if (recentSubmission) {
+                const secondsLeft = Math.ceil((recentSubmission.createdAt.getTime() + 10000 - Date.now()) / 1000);
+                throw new ApiError(429, `Please wait ${secondsLeft} seconds before submitting again.`);
+            }
+
+            // Pending submission check running under the lock
+            const pendingSubmission = await tx.submission.findFirst({
+                where: {
+                    contestId: membership.contestId,
+                    participantId: membership.id,
+                    status: { in: ["queued", "judging"] }
+                }
+            });
+
+            if (pendingSubmission) {
+                throw new ApiError(429, "You already have a submission in progress. Please wait for it to finish.");
+            }
+
+            // Insert submission and enqueue job
             const newSubmission = await tx.submission.create({
                 data: {
-                    contestId: contest.id,
+                    contestId: membership.contestId,
                     participantId: membership.id,
                     problemId: problem.id,
                     language,
@@ -81,7 +96,6 @@ const submitCode = async (
                 }
             });
 
-            // Pass the Prisma transaction client to pg-boss using fromPrisma
             await boss.send(
                 "judge-submission", 
                 { submissionId: newSubmission.id }, 
@@ -94,22 +108,18 @@ const submitCode = async (
         return submission;
 
     } catch (error: any) {
-        // 7. If insert fails with Prisma error P2002, exact same code was already submitted
+        // Fallback for extreme edge cases where exact same code slips through to the unique constraint
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-            const existingSubmission = await prisma.submission.findUnique({
+            const doubleCheckExisting = await prisma.submission.findUnique({
                 where: {
                     contestId_submissionHash: {
-                        contestId: contest.id,
+                        contestId: membership.contestId,
                         submissionHash: fingerprint
                     }
                 }
             });
-            
-            if (existingSubmission) {
-                return existingSubmission; // Return the existing row as requested
-            }
+            if (doubleCheckExisting) return doubleCheckExisting;
         }
-        
         throw error;
     }
 };
