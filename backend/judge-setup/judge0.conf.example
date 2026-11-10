@@ -1,0 +1,10 @@
+MAX_CPU_TIME_LIMIT=10
+MAX_MEMORY_LIMIT=524288
+MAX_FILE_SIZE=131072
+MAX_QUEUE_SIZE=2000
+MAX_PROCESSES_AND_OR_THREADS=60
+
+# Replace these with real secure values on the actual VM
+AUTH_TOKEN=insert_secure_token_here
+POSTGRES_PASSWORD=insert_db_password_here
+REDIS_PASSWORD=insert_redis_password_here

@@ -1,0 +1,3 @@
+judge.yourdomain.com {
+    reverse_proxy localhost:2358
+}
