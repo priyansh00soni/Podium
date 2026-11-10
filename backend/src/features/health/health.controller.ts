@@ -10,7 +10,6 @@ export async function healthCheck(req: Request, res: Response) {
     const judgeResponse = await fetch(`${process.env.JUDGE_URL}/system_info`, {
       headers: { 'X-Auth-Token': process.env.JUDGE_AUTH_TOKEN || '' }
     });
-    console.log("hi");
     
     if (!judgeResponse.ok) {
       throw new Error(`Judge0 returned status: ${judgeResponse.status}`);
