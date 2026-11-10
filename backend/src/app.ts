@@ -25,10 +25,12 @@ import problemsRouter from './features/problems/problems.routes.js';
 import submissionsRouter from './features/submissions/submissions.routes.js';
 import ApiError from "./utils/ApiError.js";
 import { logger } from "./utils/logger.js";
+import { leaderboardRouter } from "./features/leaderboard/leaderboard.routes.js";
 
 app.use('/api/v1', authRouter);
 app.use('/api/v1', problemsRouter);
 app.use('/api/v1', submissionsRouter);
+app.use('/api/v1', leaderboardRouter);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof ApiError) {
