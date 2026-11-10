@@ -125,7 +125,7 @@ export async function startJudgeWorker() {
         } catch (error: any) {
             // 9. If ANYTHING fails (network, missing files, timeouts), handle it safely
             const errorName = error instanceof Error ? error.name : "unknown";
-            judgeLogger.error(`Judge execution error: ${errorName}`);
+            judgeLogger.error(`Judge execution error: ${error instanceof Error ? error.message : "unknown"}`);
             
             try {
                 // Safely mark the submission as a judge_error so the student isn't stuck
