@@ -36,7 +36,8 @@ const loginController = asyncHandler(async (req: Request, res: Response) => {
         maxAge: 12 * 60 * 60 * 1000,
     });
 
-    return res.redirect(`/c/${slug}`);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    return res.redirect(`${frontendUrl}/c/${slug}`);
 });
 
 export { startLoginController, loginController };
