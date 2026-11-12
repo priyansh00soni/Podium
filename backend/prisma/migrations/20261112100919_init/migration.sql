@@ -20,18 +20,18 @@ CREATE TYPE "Verdict" AS ENUM ('accepted', 'wrong_answer', 'tle', 'runtime_error
 CREATE TYPE "EventType" AS ENUM ('visibility_hidden', 'fullscreen_exit', 'paste_blocked', 'permission_denied', 'camera_stopped', 'screenshare_stopped', 'login', 'session_replaced', 'submit', 'verdict', 'judge_error', 'problem_voided', 'broadcast_sent', 'contest_started', 'contest_ended', 'submission_rejudged');
 
 -- CreateTable
-CREATE TABLE "User" (
+CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "platformRole" "PlatformRole",
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Contest" (
+CREATE TABLE "contests" (
     "id" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE "Contest" (
     "leaderboardPublished" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "Contest_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "contests_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -150,11 +150,23 @@ CREATE TABLE "broadcasts" (
     CONSTRAINT "broadcasts_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+-- CreateTable
+CREATE TABLE "test_cases" (
+    "id" SERIAL NOT NULL,
+    "problemId" TEXT NOT NULL,
+    "input" TEXT NOT NULL,
+    "expectedOutput" TEXT NOT NULL,
+    "isSample" BOOLEAN NOT NULL DEFAULT false,
+    "position" INTEGER NOT NULL,
+
+    CONSTRAINT "test_cases_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Contest_slug_key" ON "Contest"("slug");
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "contests_slug_key" ON "contests"("slug");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "contest_participants_contestId_userId_key" ON "contest_participants"("contestId", "userId");
@@ -189,29 +201,32 @@ CREATE INDEX "events_contestId_eventType_createdAt_idx" ON "events"("contestId",
 -- CreateIndex
 CREATE INDEX "broadcasts_contestId_createdAt_idx" ON "broadcasts"("contestId", "createdAt");
 
--- AddForeignKey
-ALTER TABLE "allowed_emails" ADD CONSTRAINT "allowed_emails_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "Contest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "test_cases_problemId_idx" ON "test_cases"("problemId");
 
 -- AddForeignKey
-ALTER TABLE "contest_participants" ADD CONSTRAINT "contest_participants_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "Contest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "allowed_emails" ADD CONSTRAINT "allowed_emails_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "contests"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "contest_participants" ADD CONSTRAINT "contest_participants_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "contest_participants" ADD CONSTRAINT "contest_participants_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "contests"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "contest_participants" ADD CONSTRAINT "contest_participants_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "contest_participants" ADD CONSTRAINT "contest_participants_activeSessionId_fkey" FOREIGN KEY ("activeSessionId") REFERENCES "sessions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "Contest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "contests"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "problems" ADD CONSTRAINT "problems_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "Contest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "problems" ADD CONSTRAINT "problems_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "contests"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "submissions" ADD CONSTRAINT "submissions_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "Contest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "submissions" ADD CONSTRAINT "submissions_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "contests"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "submissions" ADD CONSTRAINT "submissions_contestId_participantId_fkey" FOREIGN KEY ("contestId", "participantId") REFERENCES "contest_participants"("contestId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -220,7 +235,7 @@ ALTER TABLE "submissions" ADD CONSTRAINT "submissions_contestId_participantId_fk
 ALTER TABLE "submissions" ADD CONSTRAINT "submissions_contestId_problemId_fkey" FOREIGN KEY ("contestId", "problemId") REFERENCES "problems"("contestId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "points" ADD CONSTRAINT "points_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "Contest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "points" ADD CONSTRAINT "points_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "contests"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "points" ADD CONSTRAINT "points_contestId_participantId_fkey" FOREIGN KEY ("contestId", "participantId") REFERENCES "contest_participants"("contestId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -229,7 +244,7 @@ ALTER TABLE "points" ADD CONSTRAINT "points_contestId_participantId_fkey" FOREIG
 ALTER TABLE "points" ADD CONSTRAINT "points_contestId_problemId_fkey" FOREIGN KEY ("contestId", "problemId") REFERENCES "problems"("contestId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "events" ADD CONSTRAINT "events_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "Contest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "events" ADD CONSTRAINT "events_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "contests"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "events" ADD CONSTRAINT "events_participantId_fkey" FOREIGN KEY ("participantId") REFERENCES "contest_participants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -238,10 +253,13 @@ ALTER TABLE "events" ADD CONSTRAINT "events_participantId_fkey" FOREIGN KEY ("pa
 ALTER TABLE "events" ADD CONSTRAINT "events_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "submissions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "broadcasts" ADD CONSTRAINT "broadcasts_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "Contest"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "broadcasts" ADD CONSTRAINT "broadcasts_contestId_fkey" FOREIGN KEY ("contestId") REFERENCES "contests"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "broadcasts" ADD CONSTRAINT "broadcasts_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "broadcasts" ADD CONSTRAINT "broadcasts_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "test_cases" ADD CONSTRAINT "test_cases_problemId_fkey" FOREIGN KEY ("problemId") REFERENCES "problems"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "events" ADD CONSTRAINT "events_one_actor_check"
   CHECK (num_nonnulls("participantId", "userId") = 1);
