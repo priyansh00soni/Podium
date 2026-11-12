@@ -55,7 +55,8 @@ const submitController = asyncHandler(async (req: Request, res: Response) => {
         message: "Submission received.",
         data: {
             id: submission.id,
-            status: submission.status
+            status: submission.status,
+            verdict: submission.verdict
         }
     });
 });
