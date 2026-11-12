@@ -24,7 +24,16 @@ const getProblemsForContest = async (contestId: string, startsAt: Date, endsAt: 
             title: true,
             statement: true,
             points: true,
-            type: true
+            type: true,
+            testCases: {
+                where: { isSample: true },
+                orderBy: { position: "asc" },
+                select: {
+                    id: true,
+                    input: true,
+                    expectedOutput: true
+                }
+            }
         }
     });
 

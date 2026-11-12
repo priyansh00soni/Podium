@@ -1,5 +1,4 @@
-import fs from "fs/promises";
-import path from "path";
+
 import { boss } from "../../config/queue.js";
 import { prisma } from "../../config/db.js";
 import { getLanguageLimits } from "./judge.limits.js";
@@ -38,16 +37,10 @@ export async function startJudgeWorker() {
                 data: { status: "judging" }
             });
 
-            // 4. Load the test cases from the disk
-            const testsPath = path.join(process.cwd(), "data", "tests", `${submission.problemId}.json`);
-            let tests: any[] = [];
-            
-            try {
-                const testsFile = await fs.readFile(testsPath, "utf8");
-                tests = JSON.parse(testsFile);
-            } catch (err) {
-                throw new Error("Tests file not found or invalid.");
-            }
+            const tests = await prisma.testCase.findMany({
+                where: { problemId: submission.problemId },
+                orderBy: { position: 'asc' }
+            });
 
             if (!tests || tests.length === 0) {
                 throw new Error("No tests available for this problem.");

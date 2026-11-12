@@ -8,7 +8,7 @@ const getProblemsController = asyncHandler(async (req: Request, res: Response) =
     const slug = req.params.slug as string;
 
     // We fetch the contest here to get the startsAt and endsAt times for the state check.
-    // (Note: If your auth middleware attached the contest, you could read it from req directly).
+
     const contest = await prisma.contest.findUnique({
         where: { slug: slug.toLowerCase() }
     });

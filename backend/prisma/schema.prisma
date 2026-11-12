@@ -172,6 +172,7 @@ model Problem {
 
   submissions Submission[]
   pointsTally Point[]
+  testCases TestCase[]
 
   @@unique([contestId, id])
   @@unique([contestId, number])
@@ -251,4 +252,18 @@ model Broadcast {
 
   @@index([contestId, createdAt])
   @@map("broadcasts")
+}
+
+model TestCase {
+  id             Int     @id @default(autoincrement())
+  problemId      String
+  input          String  @db.Text
+  expectedOutput String  @db.Text
+  isSample       Boolean @default(false)
+  position       Int
+  
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Restrict)
+
+  @@index([problemId])
+  @@map("test_cases")
 }
