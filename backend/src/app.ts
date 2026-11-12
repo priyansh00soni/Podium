@@ -27,12 +27,14 @@ import ApiError from "./utils/ApiError.js";
 import { logger } from "./utils/logger.js";
 import { leaderboardRouter } from "./features/leaderboard/leaderboard.routes.js";
 import { healthRouter } from "./features/health/health.routes.js";
+import { adminRouter } from "./features/admin/admin.routes.js";
 
 app.use('/api/v1', authRouter);
 app.use('/api/v1', problemsRouter);
 app.use('/api/v1', submissionsRouter);
 app.use('/api/v1', leaderboardRouter);
 app.use('/api/v1', healthRouter);
+app.use("/api/v1", adminRouter);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof ApiError) {
