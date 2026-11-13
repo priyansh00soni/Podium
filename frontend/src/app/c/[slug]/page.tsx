@@ -625,10 +625,10 @@ export default function ContestHomePage({
                   My submissions
                 </Link>
                 <Link
-                  href={`/c/${encodeURIComponent(slug)}/admin/problems`}
+                  href={`/c/${encodeURIComponent(slug)}/moderator/problems`}
                   className="px-2.5 py-1.5 rounded-md text-[#8b8b94] hover:text-[#ededf0] hover:bg-[#17171a] transition-colors"
                 >
-                  Staff
+                  Staff / Moderator
                 </Link>
               </div>
             </Card>

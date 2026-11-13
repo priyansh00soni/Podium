@@ -20,7 +20,7 @@ export default function ContestLoginPage({
       <Card className="max-w-md w-full text-center space-y-3">
         <h1 className="text-lg font-semibold">Redirecting to Google</h1>
         <p className="text-sm text-[#8b8b94]">
-          Continue with the Google account on this contest&apos;s registration list.
+          Continue with your Google account to enter this contest.
         </p>
       </Card>
     </div>

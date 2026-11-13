@@ -449,8 +449,9 @@ export async function createProblem(
   return data;
 }
 
-export async function logout(_slug: string): Promise<void> {
-  await request<void>(`/c/${encodeURIComponent(_slug)}/auth/logout`, {
+export async function logout(slug?: string): Promise<void> {
+  const endpoint = slug ? `/c/${encodeURIComponent(slug)}/auth/logout` : "/logout";
+  await request<void>(endpoint, {
     method: "POST",
   });
 }

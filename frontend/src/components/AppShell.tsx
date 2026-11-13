@@ -32,12 +32,10 @@ export function AppShell({
   const pathname = usePathname();
 
   const handleSignOut = async () => {
-    if (slug) {
-      try {
-        await logout(slug);
-      } catch {
-        // Fallback
-      }
+    try {
+      await logout(slug);
+    } catch {
+      // Fallback
     }
     window.location.reload();
   };
@@ -45,7 +43,7 @@ export function AppShell({
   const isProblems = slug ? pathname === `/c/${slug}` : false;
   const isLeaderboard = slug ? pathname === `/c/${slug}/leaderboard` : false;
   const isSubmissions = slug ? pathname === `/c/${slug}/submissions` : false;
-  const isAdmin = slug ? pathname.startsWith(`/c/${slug}/admin`) : false;
+  const isStaff = slug ? (pathname.startsWith(`/c/${slug}/moderator`) || pathname.startsWith(`/c/${slug}/admin`)) : false;
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-[#ededf0] flex flex-col antialiased">
@@ -124,9 +122,9 @@ export function AppShell({
                 My Submissions
               </Link>
               <Link
-                href={`/c/${encodeURIComponent(slug)}/admin/problems`}
+                href={`/c/${encodeURIComponent(slug)}/moderator/problems`}
                 className={`h-full flex items-center px-3 transition-colors border-b-2 ${
-                  isAdmin
+                  isStaff
                     ? "border-[#6D4AFF] text-white font-semibold"
                     : "border-transparent text-[#8b8b94] hover:text-[#ededf0]"
                 }`}
