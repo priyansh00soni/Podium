@@ -6,3 +6,4 @@ ALTER TABLE "contests" ADD COLUMN "accessType" "ContestAccessType" NOT NULL DEFA
 
 -- AlterTable
 ALTER TABLE "sessions" ALTER COLUMN "contestId" DROP NOT NULL;
+
