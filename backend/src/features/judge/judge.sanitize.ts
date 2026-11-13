@@ -1,6 +1,7 @@
 /**
  * Sanitizes compiler outputs so contestants cannot inspect lines or structure of the hidden driver harness.
  */
+// When users submit code, the platform usually appends hidden code to test their solution. If the combined code fails to compile, the raw compiler errors could expose the line numbers, variable names, or logic of the hidden tests. This function scrubs the compiler output to prevent that.
 export function sanitizeCompileOutput(
     compileOutput: string | null | undefined,
     userCode: string
@@ -33,3 +34,4 @@ export function sanitizeCompileOutput(
 
     return sanitizedLines.join("\n");
 }
+

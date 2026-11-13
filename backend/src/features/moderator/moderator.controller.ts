@@ -8,8 +8,8 @@ export const createProblem = asyncHandler(async (req: Request, res: Response) =>
     const membership = (req as any).membership;
     const { number, title, statement, points, type = "coding", testCases, starterCode, driverCode } = req.body;
 
-    // 2. Strict Role Check: Must be a moderator
-    if (membership.role !== "moderator") {
+    // 2. Strict Role Check: Must be a moderator or super admin
+    if (membership.role !== "moderator" && membership.user?.platformRole !== "admin") {
         throw new ApiError(403, "Only staff can create problems for this contest.");
     }
 
@@ -51,3 +51,4 @@ export const createProblem = asyncHandler(async (req: Request, res: Response) =>
         data: problem 
     });
 });
+

@@ -36,3 +36,4 @@ export const requireAdmin = asyncHandler(async (req: Request, res: Response, nex
     req.adminUser = session.user;
     next();
 });
+

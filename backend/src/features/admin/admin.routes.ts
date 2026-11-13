@@ -31,3 +31,4 @@ router.delete("/contests/:id/moderators/:userId", removeModeratorController);
 router.get("/stats", getStatsController);
 
 export default router;
+

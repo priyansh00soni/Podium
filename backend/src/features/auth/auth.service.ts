@@ -107,21 +107,46 @@ const handleLogin = async (code: string, slug: string, sessionContext: SessionCo
 
 const findSession = async (sessionId: string, contestId: string) => {
     const session = await prisma.session.findUnique({
-        where: { id: sessionId }
+        where: { id: sessionId },
+        include: { user: true }
     });
 
     if (!session || session.expiresAt < new Date()) {
         return null;
     }
 
-    const membership = await prisma.contestParticipant.findFirst({
+    let membership = await prisma.contestParticipant.findFirst({
         where: {
             activeSessionId: sessionId,
             contestId: contestId,
             deletedAt: null,
             disqualifiedAt: null
-        }
+        },
+        include: { user: true }
     });
+
+    // Fallback: match by userId & contestId if activeSessionId was renewed
+    if (!membership) {
+        membership = await prisma.contestParticipant.findFirst({
+            where: {
+                userId: session.userId,
+                contestId: contestId,
+                deletedAt: null,
+                disqualifiedAt: null
+            },
+            include: { user: true }
+        });
+    }
+
+    // Super Admin auto-moderator provision for any contest
+    if (!membership && session.user.platformRole === "admin") {
+        membership = await prisma.contestParticipant.upsert({
+            where: { contestId_userId: { contestId, userId: session.userId } },
+            update: { role: "moderator", deletedAt: null, disqualifiedAt: null },
+            create: { contestId, userId: session.userId, role: "moderator" },
+            include: { user: true }
+        });
+    }
 
     return membership;
 };

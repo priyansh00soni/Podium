@@ -1,11 +1,16 @@
 import {prisma} from "../../config/db.js";
 import { getContestState } from "../contest/contest.state.js";
 
-const getProblemsForContest = async (contestId: string, startsAt: Date, endsAt: Date) => {
+const getProblemsForContest = async (
+    contestId: string,
+    startsAt: Date,
+    endsAt: Date,
+    isStaff: boolean = false
+) => {
     const state = getContestState(startsAt, endsAt);
 
-    // If the contest hasn't started, return an empty array to prevent leaking problems
-    if (state === "before") {
+    // If the contest hasn't started, return an empty array to prevent leaking problems to participants
+    if (state === "before" && !isStaff) {
         return [];
     }
 

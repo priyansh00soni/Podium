@@ -17,7 +17,9 @@ const getProblemsController = asyncHandler(async (req: Request, res: Response) =
         throw new ApiError(404, "Contest not found.");
     }
 
-    const problems = await getProblemsForContest(contest.id, contest.startsAt, contest.endsAt);
+    const membership = (req as any).membership;
+    const isStaff = membership?.role === "moderator" || membership?.user?.platformRole === "admin";
+    const problems = await getProblemsForContest(contest.id, contest.startsAt, contest.endsAt, isStaff);
 
     return res.status(200).json({
         success: true,

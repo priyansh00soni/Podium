@@ -112,3 +112,4 @@ export const getStatsController = asyncHandler(async (req: Request, res: Respons
     const stats = await getPlatformStats();
     return res.status(200).json({ success: true, data: stats });
 });
+
