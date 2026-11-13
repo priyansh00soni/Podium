@@ -1,2 +1,3 @@
 ALTER TABLE "problems" ADD COLUMN "starterCode" JSONB NOT NULL DEFAULT '{}';
 ALTER TABLE "problems" ADD COLUMN "driverCode" JSONB NOT NULL DEFAULT '{}';
+
