@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import {  Language } from "../../generated/prisma/client.js";
 import asyncHandler from "../../utils/asyncHandler.js";
 import ApiError from "../../utils/ApiError.js";
-import { submitCode } from "./submissions.service.js";
+import { submitCode, getOwnSubmissions, getOwnSubmission } from "./submissions.service.js";
 import {prisma} from "../../config/db.js";
 
 const MAX_CODE_SIZE_BYTES = 64 * 1024; // 64 KB
@@ -62,4 +62,24 @@ const submitController = asyncHandler(async (req: Request, res: Response) => {
     });
 });
 
-export { submitController };
+const getSubmissionsController = asyncHandler(async (req: Request, res: Response) => {
+    const membership = req.membership;
+    if (!membership) throw new ApiError(401, "Session invalid or expired.");
+
+    const submissions = await getOwnSubmissions(membership.contestId, membership.id);
+    return res.status(200).json({ success: true, data: submissions });
+});
+
+const getSubmissionController = asyncHandler(async (req: Request, res: Response) => {
+    const membership = req.membership;
+    if (!membership) throw new ApiError(401, "Session invalid or expired.");
+
+    const submission = await getOwnSubmission(
+        membership.contestId,
+        membership.id,
+        req.params.id as string
+    );
+    return res.status(200).json({ success: true, data: submission });
+});
+
+export { submitController, getSubmissionsController, getSubmissionController };

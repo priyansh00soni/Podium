@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import asyncHandler from "../../utils/asyncHandler.js";
-import { handleLogin } from "./auth.service.js";
+import { handleLogin, getCurrentParticipant } from "./auth.service.js";
 import ApiError from "../../utils/ApiError.js";
 import { CALLBACK_URL, googleClient } from "../../config/google.js";
 
@@ -40,4 +40,12 @@ const loginController = asyncHandler(async (req: Request, res: Response) => {
     return res.redirect(`${frontendUrl}/c/${slug}`);
 });
 
-export { startLoginController, loginController };
+const getMeController = asyncHandler(async (req: Request, res: Response) => {
+    const membership = req.membership;
+    if (!membership) throw new ApiError(401, "Session invalid or expired.");
+
+    const participant = await getCurrentParticipant(membership.contestId, membership.id);
+    return res.status(200).json({ success: true, data: participant });
+});
+
+export { startLoginController, loginController, getMeController };

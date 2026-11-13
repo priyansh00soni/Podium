@@ -1,4 +1,12 @@
-import { Verdict } from "../../generated/prisma/enums.js";
+import type { Language, Verdict } from "../../generated/prisma/enums.js";
+
+export interface JudgeResult {
+    verdict: Verdict;
+    compileOutput: string | null;
+}
+
+type TestResult = { status_id: number; compile_output?: string | null };
+const MAX_COMPILE_OUTPUT_BYTES = 16 * 1024;
 
 // Replaced Record<string, number> with standard object bracket notation
 const JUDGE0_LANGUAGE_IDS: { [key: string]: number } = {
@@ -24,10 +32,10 @@ const mapStatusToVerdict = (statusId: number): Verdict => {
 
 export async function runTests(
     code: string, 
-    language: string, 
-    tests: any[], 
+    language: Language,
+    tests: { input: string; expectedOutput: string }[],
     limits: { time: number; memory: number }
-) {
+): Promise<JudgeResult> {
     const judgeUrl = process.env.JUDGE_URL;
     const authToken = process.env.JUDGE_AUTH_TOKEN;
 
@@ -66,11 +74,15 @@ export async function runTests(
     if (!createRes.ok) throw new Error(`Judge creation failed: ${createRes.status}`);
     
     const createData = await createRes.json();
+    if (!Array.isArray(createData) || createData.length !== tests.length ||
+        createData.some(result => typeof result.token !== "string" || !result.token)) {
+        throw new Error("Judge returned an invalid submission batch.");
+    }
     const tokens = createData.map((t: { token: string }) => t.token).join(",");
 
     // 2. Poll until all tests leave status 1 and 2, with a hard deadline, Status 1 means "In Queue" and 2 means "Processing".
     let isProcessing = true;
-    let results: any[] = [];
+    let results: TestResult[] = [];
     const deadline = Date.now() + 120_000;
     
     while (isProcessing) {
@@ -80,7 +92,7 @@ export async function runTests(
 
         await new Promise(res => setTimeout(res, 1500));
         
-        const pollRes = await fetch(`${judgeUrl}/submissions/batch?tokens=${tokens}&base64_encoded=true&fields=status_id`, {
+        const pollRes = await fetch(`${judgeUrl}/submissions/batch?tokens=${tokens}&base64_encoded=true&fields=status_id,compile_output`, {
             signal: AbortSignal.timeout(10_000),
             headers
         });
@@ -88,6 +100,9 @@ export async function runTests(
         if (!pollRes.ok) throw new Error(`Judge polling failed: ${pollRes.status}`);
         
         const pollData = await pollRes.json();
+        if (!Array.isArray(pollData.submissions) || pollData.submissions.length !== tests.length) {
+            throw new Error("Judge returned an incomplete result batch.");
+        }
         results = pollData.submissions;
         
         isProcessing = results.some((sub: any) => sub.status_id <= 2); //Status 1 means "In Queue" and 2 means "Processing".
@@ -97,7 +112,17 @@ export async function runTests(
     const priority: Verdict[] = ["judge_error", "compile_error", "runtime_error", "tle", "wrong_answer"];
     const found = new Set(results.map(r => mapStatusToVerdict(r.status_id)));
     
-    return priority.find(v => found.has(v)) ?? "accepted";
+    const verdict = priority.find(v => found.has(v)) ?? "accepted";
+    const compilerResult = results.find(result => result.status_id === 6 && result.compile_output);
+    let compileOutput: string | null = null;
+
+    if (verdict === "compile_error" && compilerResult?.compile_output) {
+        const output = Buffer.from(compilerResult.compile_output, "base64");
+        compileOutput = output.subarray(0, MAX_COMPILE_OUTPUT_BYTES).toString("utf8");
+        if (output.length > MAX_COMPILE_OUTPUT_BYTES) compileOutput += "\n[Compiler output truncated]";
+    }
+
+    return { verdict, compileOutput };
 }
 
 // 1. const priority = [...]

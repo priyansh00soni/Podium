@@ -89,6 +89,7 @@ model Contest {
   id                   String   @id @default(uuid())
   slug                 String   @unique
   title                String
+  description          String?  @db.Text
   startsAt             DateTime
   endsAt               DateTime
   leaderboardPublished Boolean  @default(false)
@@ -189,6 +190,7 @@ model Submission {
   submissionHash String
   status         SubmissionStatus @default(queued)
   verdict        Verdict?
+  compileOutput  String?          @db.Text
   clickedAt      DateTime
   judgedAt       DateTime?
   createdAt      DateTime         @default(now())

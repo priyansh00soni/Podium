@@ -9,14 +9,14 @@ const judgeLogger = createComponentLogger("judge");
 const HARD_TIMEOUT_MS = 120 * 1000;
 
 export async function startJudgeWorker() {
-    await boss.work("judge-submission", { teamConcurrency: 4, batchSize: 1 }, async (jobs) => {
+    await boss.work<{ submissionId: string }>("judge-submission", { localConcurrency: 4, batchSize: 1 }, async (jobs) => {
 
         // 1. Get the single job from the array
         const job = jobs[0];
         if (!job) return
 
-        const data = job.data as any;
-        const submissionId = String(data.submissionId);
+        const submissionId = job.data.submissionId;
+        if (typeof submissionId !== "string") return;
 
         // 2. Load the submission and problem from the database
         const submission = await prisma.submission.findUnique({
@@ -24,7 +24,7 @@ export async function startJudgeWorker() {
             include: { problem: true }
         });
 
-        if (!submission) {
+        if (!submission || submission.status === "done") {
             return;
         }
 
@@ -32,13 +32,14 @@ export async function startJudgeWorker() {
 
         try {
             // 3. Mark as judging so the user sees the loading spinner
-            await prisma.submission.update({
-                where: { id: submissionId },
+            const claimed = await prisma.submission.updateMany({
+                where: { id: submissionId, contestId: submission.contestId, status: "queued" },
                 data: { status: "judging" }
             });
+            if (claimed.count === 0) return;
 
             const tests = await prisma.testCase.findMany({
-                where: { problemId: submission.problemId },
+                where: { problemId: submission.problemId, problem: { contestId: submission.contestId } },
                 orderBy: { position: 'asc' }
             });
 
@@ -50,7 +51,7 @@ export async function startJudgeWorker() {
             const limits = getLanguageLimits(submission.language);
             
             // 6. Setup the 120-second hard timeout timer
-            const timeoutPromise = new Promise((resolve, reject) => {
+            const timeoutPromise = new Promise<never>((resolve, reject) => {
                 timerId = setTimeout(() => {
                     const timeoutError = new Error("Judge hard timeout reached (120s)");
                     reject(timeoutError);
@@ -58,7 +59,7 @@ export async function startJudgeWorker() {
             });
 
             // 7. Run the tests, but abort if the 120-second timer finishes first
-            const verdict = await Promise.race([
+            const result = await Promise.race([
                 runTests(submission.code, submission.language, tests, limits),
                 timeoutPromise
             ]);
@@ -68,16 +69,17 @@ export async function startJudgeWorker() {
                 
                 // Update the submission status
                 await tx.submission.update({
-                    where: { id: submissionId },
+                    where: { contestId_id: { contestId: submission.contestId, id: submissionId } },
                     data: {
                         status: "done",
-                        verdict: verdict as any, // Cast prevents strict enum mismatches
+                        verdict: result.verdict,
+                        compileOutput: result.compileOutput,
                         judgedAt: new Date()
                     }
                 });
 
                 // Award points if they got it right
-                if (verdict === "accepted") {
+                if (result.verdict === "accepted") {
                     const existingPoint = await tx.point.findUnique({
                         where: {
                             contestId_participantId_problemId: {
@@ -102,7 +104,7 @@ export async function startJudgeWorker() {
                 }
 
                 // Create the audit event (safely formatting the metadata for Prisma JSON)
-                const successMetadata = { finalVerdict: String(verdict) };
+                const successMetadata = { finalVerdict: result.verdict };
                 
                 await tx.event.create({
                     data: {
@@ -118,17 +120,18 @@ export async function startJudgeWorker() {
         } catch (error: any) {
             // 9. If ANYTHING fails (network, missing files, timeouts), handle it safely
             const errorName = error instanceof Error ? error.name : "unknown";
-            judgeLogger.error(`Judge execution error: ${error instanceof Error ? error.message : "unknown"}`);
+            judgeLogger.error(`Judge execution error: ${errorName}`);
             
             try {
                 // Safely mark the submission as a judge_error so the student isn't stuck
                 await prisma.$transaction(async (tx) => {
                     
                     await tx.submission.update({
-                        where: { id: submissionId },
+                        where: { contestId_id: { contestId: submission.contestId, id: submissionId } },
                         data: {
                             status: "done",
                             verdict: "judge_error",
+                            compileOutput: null,
                             judgedAt: new Date()
                         }
                     });

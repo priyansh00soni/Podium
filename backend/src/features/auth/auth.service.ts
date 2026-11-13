@@ -81,4 +81,31 @@ const findSession = async (sessionId: string, contestId: string) => {
     return membership;
 };
 
-export { handleLogin, findSession };
+const getCurrentParticipant = async (contestId: string, participantId: string) => {
+    const participant = await prisma.contestParticipant.findFirst({
+        where: { id: participantId, contestId },
+        select: {
+            id: true,
+            role: true,
+            user: { select: { id: true, name: true, email: true } },
+            submissions: {
+                where: { contestId, status: { in: ["queued", "judging"] } },
+                take: 1,
+                select: { id: true }
+            }
+        }
+    });
+
+    if (!participant) throw new ApiError(401, "Session invalid or expired.");
+
+    return {
+        id: participant.user.id,
+        participantId: participant.id,
+        name: participant.user.name,
+        email: participant.user.email,
+        role: participant.role,
+        pending: participant.submissions.length > 0
+    };
+};
+
+export { handleLogin, findSession, getCurrentParticipant };

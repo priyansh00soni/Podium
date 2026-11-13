@@ -127,4 +127,76 @@ const submitCode = async (
     }
 };
 
-export { submitCode };
+const submissionFields = {
+    id: true,
+    problemId: true,
+    language: true,
+    status: true,
+    verdict: true,
+    clickedAt: true,
+    judgedAt: true,
+    createdAt: true,
+    problem: {
+        select: { number: true, title: true, status: true }
+    }
+} satisfies Prisma.SubmissionSelect;
+
+type SubmissionSummary = Prisma.SubmissionGetPayload<{ select: typeof submissionFields }>;
+type AwardedPoint = { problemId: string; points: number; solveTime: Date };
+
+const formatSubmission = (submission: SubmissionSummary, point?: AwardedPoint) => ({
+    id: submission.id,
+    problemId: submission.problemId,
+    problemLetter: String.fromCharCode(64 + submission.problem.number),
+    problemTitle: submission.problem.title,
+    language: submission.language,
+    status: submission.status,
+    verdict: submission.verdict,
+    clickedAt: submission.clickedAt,
+    judgedAt: submission.judgedAt,
+    createdAt: submission.createdAt,
+    // The points row identifies the submission that first earned this problem's score.
+    points: submission.verdict === "accepted" && submission.problem.status === "active" &&
+        point?.solveTime.getTime() === submission.clickedAt.getTime() ? point.points : 0
+});
+
+const getOwnSubmissions = async (contestId: string, participantId: string) => {
+    const submissions = await prisma.submission.findMany({
+        where: { contestId, participantId },
+        select: submissionFields,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }]
+    });
+
+    // Read points after submissions so a completed verdict includes its committed award.
+    const points = await prisma.point.findMany({
+        where: { contestId, participantId },
+        select: { problemId: true, points: true, solveTime: true }
+    });
+
+    const pointsByProblem = new Map(points.map(point => [point.problemId, point]));
+    return submissions.map(submission => formatSubmission(submission, pointsByProblem.get(submission.problemId)));
+};
+
+const getOwnSubmission = async (contestId: string, participantId: string, id: string) => {
+    const submission = await prisma.submission.findFirst({
+        where: { id, contestId, participantId },
+        select: { ...submissionFields, code: true, compileOutput: true }
+    });
+
+    if (!submission) throw new ApiError(404, "Submission not found.");
+
+    const point = await prisma.point.findUnique({
+        where: {
+            contestId_participantId_problemId: { contestId, participantId, problemId: submission.problemId }
+        },
+        select: { problemId: true, points: true, solveTime: true }
+    });
+
+    return {
+        ...formatSubmission(submission, point ?? undefined),
+        code: submission.code,
+        compileOutput: submission.verdict === "compile_error" ? submission.compileOutput : null
+    };
+};
+
+export { submitCode, getOwnSubmissions, getOwnSubmission };
