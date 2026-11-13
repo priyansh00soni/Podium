@@ -1,14 +1,14 @@
-import type { prisma } from "../config/db.js";
-import type { User } from "../generated/prisma/client.js";
+import type { Contest, ContestParticipant, User } from "../generated/prisma/client.js";
 
-type Membership = NonNullable<
-    Awaited<ReturnType<typeof prisma.contestParticipant.findFirst>>
->;
+export type Membership = ContestParticipant & {
+    user: User;
+};
 
 declare global {
     namespace Express {
         interface Request {
             membership?: Membership;
+            contest?: Contest;
             adminUser?: User;
         }
     }

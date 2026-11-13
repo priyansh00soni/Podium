@@ -23,6 +23,7 @@ const authMid = asyncHandler(async (req: Request, res: Response, next: NextFunct
     if (!membership) throw new ApiError(401, "Session invalid or expired.");
 
     req.membership = membership;
+    req.contest = contest;
     
     next();
 });

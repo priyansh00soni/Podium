@@ -69,19 +69,6 @@ const submitCode = async (
                 throw new ApiError(429, `Please wait ${secondsLeft} seconds before submitting again.`);
             }
 
-            // Pending submission check running under the lock
-            const pendingSubmission = await tx.submission.findFirst({
-                where: {
-                    contestId: membership.contestId,
-                    participantId: membership.id,
-                    status: { in: ["queued", "judging"] }
-                }
-            });
-
-            if (pendingSubmission) {
-                throw new ApiError(429, "You already have a submission in progress. Please wait for it to finish.");
-            }
-
             // Insert submission and enqueue job
             const newSubmission = await tx.submission.create({
                 data: {

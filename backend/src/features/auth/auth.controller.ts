@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import asyncHandler from "../../utils/asyncHandler.js";
-import { handleLogin, getCurrentParticipant } from "./auth.service.js";
+import { handleLogin } from "./auth.service.js";
 import ApiError from "../../utils/ApiError.js";
 import { CALLBACK_URL, googleClient } from "../../config/google.js";
 import { prisma } from "../../config/db.js";
@@ -69,8 +69,17 @@ const getMeController = asyncHandler(async (req: Request, res: Response) => {
     const membership = req.membership;
     if (!membership) throw new ApiError(401, "Session invalid or expired.");
 
-    const participant = await getCurrentParticipant(membership.contestId, membership.id);
-    return res.status(200).json({ success: true, data: participant });
+    return res.status(200).json({
+        success: true,
+        data: {
+            id: membership.user.id,
+            participantId: membership.id,
+            name: membership.user.name,
+            email: membership.user.email,
+            role: membership.role,
+            pending: false
+        }
+    });
 });
 
 const getPlatformMeController = asyncHandler(async (req: Request, res: Response) => {

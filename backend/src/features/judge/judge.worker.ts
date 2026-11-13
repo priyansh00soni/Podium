@@ -19,10 +19,18 @@ export async function startJudgeWorker() {
         const submissionId = job.data.submissionId;
         if (typeof submissionId !== "string") return;
 
-        // 2. Load the submission and problem from the database
+        // 2. Load the submission, problem, and test cases in a single query
         const submission = await prisma.submission.findUnique({
             where: { id: submissionId },
-            include: { problem: true }
+            include: {
+                problem: {
+                    include: {
+                        testCases: {
+                            orderBy: { position: 'asc' }
+                        }
+                    }
+                }
+            }
         });
 
         if (!submission || submission.status === "done") {
@@ -39,10 +47,7 @@ export async function startJudgeWorker() {
             });
             if (claimed.count === 0) return;
 
-            const tests = await prisma.testCase.findMany({
-                where: { problemId: submission.problemId, problem: { contestId: submission.contestId } },
-                orderBy: { position: 'asc' }
-            });
+            const tests = submission.problem.testCases;
 
             if (!tests || tests.length === 0) {
                 throw new Error("No tests available for this problem.");

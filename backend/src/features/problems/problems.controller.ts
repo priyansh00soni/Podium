@@ -5,19 +5,18 @@ import {prisma} from "../../config/db.js";
 import { getProblemsForContest } from "./problems.service.js";
 
 const getProblemsController = asyncHandler(async (req: Request, res: Response) => {
-    const slug = req.params.slug as string;
+    const slug = (req.params.slug as string)?.toLowerCase();
 
-    // We fetch the contest here to get the startsAt and endsAt times for the state check.
-
-    const contest = await prisma.contest.findUnique({
-        where: { slug: slug.toLowerCase() }
-    });
+    // Reuse contest from middleware when available, avoiding redundant DB query
+    const contest = req.contest || (await prisma.contest.findUnique({
+        where: { slug }
+    }));
 
     if (!contest) {
         throw new ApiError(404, "Contest not found.");
     }
 
-    const membership = (req as any).membership;
+    const membership = req.membership;
     const isStaff = membership?.role === "moderator" || membership?.user?.platformRole === "admin";
     const problems = await getProblemsForContest(contest.id, contest.startsAt, contest.endsAt, isStaff);
 

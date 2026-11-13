@@ -13,13 +13,16 @@ const MAX_CODE_SIZE_BYTES = 64 * 1024; // 64 KB
 const submitController = asyncHandler(async (req: Request, res: Response) => {
     const problemId = String(req.params.problemId);
     const { language, code } = req.body;
-    const membership = (req as any).membership;
+    const membership = req.membership;
+    if (!membership) {
+        throw new ApiError(401, "Session invalid or expired.");
+    }
     const clickedAt = new Date();
     
-    // Explicitly fetch the contest once
-    const contest = await prisma.contest.findUnique({
+    // Reuse contest from middleware or fetch if not present
+    const contest = req.contest || (await prisma.contest.findUnique({
         where: { id: membership.contestId }
-    });
+    }));
 
     if (!contest) {
         throw new ApiError(404, "Contest not found.");
@@ -88,7 +91,10 @@ const getSubmissionController = asyncHandler(async (req: Request, res: Response)
 const runCodeController = asyncHandler(async (req: Request, res: Response) => {
     const problemId = String(req.params.problemId);
     const { language, code, customInput } = req.body;
-    const membership = (req as any).membership;
+    const membership = req.membership;
+    if (!membership) {
+        throw new ApiError(401, "Session invalid or expired.");
+    }
 
     if (!problemId) {
         throw new ApiError(400, "Problem ID is required.");
@@ -106,42 +112,34 @@ const runCodeController = asyncHandler(async (req: Request, res: Response) => {
         throw new ApiError(400, "Code payload exceeds the 64 KB limit.");
     }
 
-    // Invariant: One-pending-action rule (cannot run code while judging a submission)
-    if (membership?.contestId && membership?.id) {
-        const pending = await prisma.submission.findFirst({
-            where: {
-                contestId: membership.contestId,
-                participantId: membership.id,
-                status: { in: ["queued", "judging"] }
+    // Consolidated single query: fetch problem driver code and test cases together
+    const problem = await prisma.problem.findUnique({
+        where: { id: problemId },
+        select: {
+            driverCode: true,
+            testCases: {
+                orderBy: { position: "asc" },
+                select: { input: true, expectedOutput: true, isSample: true }
             }
-        });
-        if (pending) {
-            throw new ApiError(429, "You have a submission currently being judged. Please wait for it to complete.");
         }
+    });
+
+    if (!problem) {
+        throw new ApiError(404, "Problem not found.");
     }
 
-    // Fetch sample test cases for this problem
+    // Determine sample/test cases to run against
     let tests: { input: string; expectedOutput: string }[] = [];
 
     if (customInput !== undefined && typeof customInput === "string") {
         tests = [{ input: customInput, expectedOutput: "" }];
     } else {
-        const sampleCases = await prisma.testCase.findMany({
-            where: { problemId, isSample: true },
-            orderBy: { position: "asc" },
-            select: { input: true, expectedOutput: true }
-        });
-
-        if (sampleCases && sampleCases.length > 0) {
+        const sampleCases = problem.testCases.filter(tc => tc.isSample);
+        if (sampleCases.length > 0) {
             tests = sampleCases;
-        } else {
-            // Fallback to first available test case if none marked sample
-            const firstCase = await prisma.testCase.findFirst({
-                where: { problemId },
-                orderBy: { position: "asc" },
-                select: { input: true, expectedOutput: true }
-            });
-            if (firstCase) tests = [firstCase];
+        } else if (problem.testCases.length > 0) {
+            // Fallback to first test case if none marked as sample
+            tests = [problem.testCases[0]];
         }
     }
 
@@ -150,12 +148,7 @@ const runCodeController = asyncHandler(async (req: Request, res: Response) => {
     }
 
     // Check if problem has a driver harness for this language
-    const problem = await prisma.problem.findUnique({
-        where: { id: problemId },
-        select: { driverCode: true }
-    });
-
-    const driverCodeMap = (problem?.driverCode as Record<string, string>) || {};
+    const driverCodeMap = (problem.driverCode as Record<string, string>) || {};
     const driver = driverCodeMap[language];
     const codeToExecute = driver && typeof driver === "string" && driver.trim().length > 0
         ? `${code}\n\n// --- HIDDEN DRIVER HARNESS ---\n${driver}`
