@@ -1,4 +1,5 @@
 import type { Language, Verdict } from "../../generated/prisma/enums.js";
+import { setTimeout as sleep } from "node:timers/promises";
 
 export interface JudgeResult {
     verdict: Verdict;
@@ -8,7 +9,7 @@ export interface JudgeResult {
 type TestResult = { status_id: number; compile_output?: string | null };
 const MAX_COMPILE_OUTPUT_BYTES = 16 * 1024;
 
-// Replaced Record<string, number> with standard object bracket notation
+
 const JUDGE0_LANGUAGE_IDS: { [key: string]: number } = {
     c: 50,
     cpp: 54,
@@ -90,7 +91,7 @@ export async function runTests(
             throw new Error("Judge polling deadline reached");
         }
 
-        await new Promise(res => setTimeout(res, 1500));
+        await sleep(1500);
         
         const pollRes = await fetch(`${judgeUrl}/submissions/batch?tokens=${tokens}&base64_encoded=true&fields=status_id,compile_output`, {
             signal: AbortSignal.timeout(10_000),
@@ -123,6 +124,143 @@ export async function runTests(
     }
 
     return { verdict, compileOutput };
+}
+
+export interface DetailedTestResult {
+  input: string;
+  expectedOutput: string;
+  actualOutput: string | null;
+  status: "passed" | "failed" | "error";
+  time?: string;
+  memory?: string;
+  error?: string | null;
+}
+
+export interface RunCodeDetailedResponse {
+  success: boolean;
+  verdict: "passed" | "failed" | "error";
+  compileError?: string | null;
+  totalTests: number;
+  passedTests: number;
+  testCases: DetailedTestResult[];
+}
+
+const toBase64 = (str: string) => Buffer.from(str).toString("base64");
+const fromBase64 = (str: string) => Buffer.from(str, "base64").toString("utf8");
+
+export async function runSampleTestsDetailed(
+  code: string,
+  language: Language,
+  tests: { input: string; expectedOutput: string }[],
+  limits: { time: number; memory: number }
+) {
+  const judgeUrl = process.env.JUDGE_URL;
+  if (!judgeUrl) throw new Error("JUDGE_URL environment variable is not set.");
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (process.env.JUDGE_AUTH_TOKEN) {
+    headers["X-Auth-Token"] = process.env.JUDGE_AUTH_TOKEN;
+  }
+
+  const base64Code = toBase64(code);
+  const submissions = tests.map(test => ({
+    language_id: JUDGE0_LANGUAGE_IDS[language],
+    source_code: base64Code,
+    stdin: test.input !== undefined ? toBase64(test.input) : null,
+    expected_output: test.expectedOutput !== undefined ? toBase64(test.expectedOutput) : null,
+    cpu_time_limit: limits.time,
+    memory_limit: limits.memory * 1024,
+    enable_network: false,
+  }));
+
+  const createRes = await fetch(`${judgeUrl}/submissions/batch?base64_encoded=true`, {
+    signal: AbortSignal.timeout(10_000),
+    method: "POST",
+    headers,
+    body: JSON.stringify({ submissions }),
+  });
+
+  if (!createRes.ok) throw new Error(`Judge creation failed: ${createRes.status}`);
+
+  const createData = await createRes.json();
+  if (!Array.isArray(createData) || createData.length !== tests.length) {
+    throw new Error("Judge returned an invalid submission batch.");
+  }
+
+  const tokens = createData.map((t: { token: string }) => t.token).join(",");
+  const deadline = Date.now() + 60_000;
+  let results: any[] = [];
+
+  while (true) {
+    if (Date.now() > deadline) throw new Error("Judge polling deadline reached");
+
+    await sleep(1200);
+
+    const pollRes = await fetch(
+      `${judgeUrl}/submissions/batch?tokens=${tokens}&base64_encoded=true&fields=status_id,stdout,stderr,compile_output,time,memory,status`,
+      { signal: AbortSignal.timeout(10_000), headers }
+    );
+
+    if (!pollRes.ok) throw new Error(`Judge polling failed: ${pollRes.status}`);
+
+    const pollData = await pollRes.json();
+    results = pollData.submissions || [];
+
+    if (!results.some((sub: any) => sub.status_id <= 2)) break;
+  }
+
+  const compileErr = results.find(r => r.status_id === 6 && r.compile_output);
+  if (compileErr) {
+    return {
+      success: false,
+      verdict: "error" as const,
+      compileError: fromBase64(compileErr.compile_output),
+      totalTests: tests.length,
+      passedTests: 0,
+      testCases: tests.map(t => ({
+        input: t.input,
+        expectedOutput: t.expectedOutput,
+        actualOutput: null,
+        status: "error" as const,
+        error: "Compilation failed",
+      })),
+    };
+  }
+
+  let passedTests = 0;
+  const testCases: DetailedTestResult[] = results.map((res, idx) => {
+    const test = tests[idx];
+    const stdout = res.stdout ? fromBase64(res.stdout).trim() : "";
+    const stderr = res.stderr ? fromBase64(res.stderr).trim() : null;
+    const expected = (test?.expectedOutput ?? "").trim();
+    const isPassed = res.status_id === 3 || stdout === expected;
+
+    if (isPassed) passedTests++;
+
+    let error: string | null = null;
+    if (res.status_id === 5) error = "Time Limit Exceeded";
+    else if (res.status_id >= 7 && res.status_id <= 12) error = stderr || "Runtime Error";
+    else if (!isPassed) error = "Output mismatch";
+
+    return {
+      input: test?.input ?? "",
+      expectedOutput: expected,
+      actualOutput: stdout || null,
+      status: isPassed ? "passed" : error?.includes("Error") ? "error" : "failed",
+      time: res.time ? `${res.time}s` : undefined,
+      memory: res.memory ? `${Math.round(res.memory / 1024)}MB` : undefined,
+      error,
+    };
+  });
+
+  const success = passedTests === tests.length;
+  return {
+    success,
+    verdict: success ? ("passed" as const) : ("failed" as const),
+    totalTests: tests.length,
+    passedTests,
+    testCases,
+  };
 }
 
 // 1. const priority = [...]
