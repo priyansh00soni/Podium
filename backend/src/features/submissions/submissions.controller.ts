@@ -56,7 +56,8 @@ const submitController = asyncHandler(async (req: Request, res: Response) => {
         data: {
             id: submission.id,
             status: submission.status,
-            verdict: submission.verdict
+            verdict: submission.verdict ?? null,
+            judgedAt: submission.judgedAt ?? null,
         }
     });
 });
