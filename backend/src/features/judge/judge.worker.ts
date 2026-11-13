@@ -3,6 +3,7 @@ import { boss } from "../../config/queue.js";
 import { prisma } from "../../config/db.js";
 import { getLanguageLimits } from "./judge.limits.js";
 import { runTests } from "./judge.js";
+import { sanitizeCompileOutput } from "./judge.sanitize.js";
 import { createComponentLogger } from "../../utils/logger.js";
 
 const judgeLogger = createComponentLogger("judge");
@@ -71,6 +72,11 @@ export async function startJudgeWorker() {
                 timeoutPromise
             ]);
 
+            const sanitizedCompileOutput = sanitizeCompileOutput(
+                result.compileOutput,
+                submission.code
+            );
+
             // 9. Save the final results to the database atomically
             await prisma.$transaction(async (tx) => {
                 
@@ -80,7 +86,7 @@ export async function startJudgeWorker() {
                     data: {
                         status: "done",
                         verdict: result.verdict,
-                        compileOutput: result.compileOutput,
+                        compileOutput: sanitizedCompileOutput,
                         judgedAt: new Date()
                     }
                 });

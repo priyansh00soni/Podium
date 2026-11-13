@@ -46,6 +46,13 @@ export interface CurrentUser {
   pending: boolean;
 }
 
+export interface PlatformUser {
+  id: string;
+  name: string;
+  email: string;
+  platformRole: "admin" | null;
+}
+
 export interface ProblemSample {
   id?: number | string;
   input: string;
@@ -205,6 +212,19 @@ export function letterFromNumber(number: number): string {
 
 export function getSignInUrl(slug: string): string {
   return `${API_PREFIX}/c/${encodeURIComponent(slug)}/auth/google`;
+}
+
+export function getAdminSignInUrl(): string {
+  return `${API_PREFIX}/auth/google/admin`;
+}
+
+export async function getPlatformMe(signal?: AbortSignal): Promise<PlatformUser | null> {
+  try {
+    const res = await request<unknown>("/me", { signal });
+    return unwrapData<PlatformUser | null>(res);
+  } catch {
+    return null;
+  }
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -416,7 +436,7 @@ export async function createProblem(
   slug: string,
   payload: CreateProblemPayload
 ): Promise<{ id: string; title: string }> {
-  const res = await request<unknown>(`/c/${encodeURIComponent(slug)}/admin/problems`, {
+  const res = await request<unknown>(`/c/${encodeURIComponent(slug)}/moderator/problems`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -506,4 +526,112 @@ export async function getSubmission(slug: string, id: string, signal?: AbortSign
     throw new InvalidSubmissionResponseError("The server returned an invalid submission status.");
   }
   return submission;
+}
+
+export interface AdminContestSummary {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string;
+  leaderboardPublished: boolean;
+  createdAt: string;
+  _count: {
+    participants: number;
+    problems: number;
+    submissions: number;
+    allowedEmails: number;
+  };
+}
+
+export interface AdminContestDetail extends AdminContestSummary {
+  allowedEmails: { contestId: string; email: string; name?: string | null; rollNumber?: string | null }[];
+  participants: { id: string; role: string; user: { id: string; name: string; email: string } }[];
+  problems: { id: string; number: number; title: string; points: number; type: string; status: string }[];
+}
+
+export interface CreateAdminContestPayload {
+  slug: string;
+  title: string;
+  description?: string;
+  startsAt: string;
+  endsAt: string;
+  leaderboardPublished?: boolean;
+}
+
+export interface UpdateAdminContestPayload {
+  title?: string;
+  description?: string;
+  startsAt?: string;
+  endsAt?: string;
+  leaderboardPublished?: boolean;
+}
+
+export interface AdminStats {
+  totalContests: number;
+  totalUsers: number;
+  totalSubmissions: number;
+  pendingQueue: number;
+}
+
+export async function getAdminContests(): Promise<AdminContestSummary[]> {
+  const res = await request<unknown>("/admin/contests");
+  return unwrapData<AdminContestSummary[]>(res);
+}
+
+export async function getAdminContestDetail(id: string): Promise<AdminContestDetail> {
+  const res = await request<unknown>(`/admin/contests/${encodeURIComponent(id)}`);
+  return unwrapData<AdminContestDetail>(res);
+}
+
+export async function createAdminContest(payload: CreateAdminContestPayload): Promise<AdminContestSummary> {
+  const res = await request<unknown>("/admin/contests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return unwrapData<AdminContestSummary>(res);
+}
+
+export async function updateAdminContest(id: string, payload: UpdateAdminContestPayload): Promise<AdminContestSummary> {
+  const res = await request<unknown>(`/admin/contests/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return unwrapData<AdminContestSummary>(res);
+}
+
+export async function addAdminAllowedEmails(contestId: string, emails: string[]): Promise<{ added: number; totalProcessed: number }> {
+  const res = await request<unknown>(`/admin/contests/${encodeURIComponent(contestId)}/allowed-emails`, {
+    method: "POST",
+    body: JSON.stringify({ emails }),
+  });
+  return unwrapData<{ added: number; totalProcessed: number }>(res);
+}
+
+export async function removeAdminAllowedEmail(contestId: string, email: string): Promise<{ success: boolean; email: string }> {
+  const res = await request<unknown>(`/admin/contests/${encodeURIComponent(contestId)}/allowed-emails/${encodeURIComponent(email)}`, {
+    method: "DELETE",
+  });
+  return unwrapData<{ success: boolean; email: string }>(res);
+}
+
+export async function assignAdminModerator(contestId: string, email: string): Promise<{ success: boolean; user: { id: string; email: string; name: string } }> {
+  const res = await request<unknown>(`/admin/contests/${encodeURIComponent(contestId)}/moderators`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+  return unwrapData<{ success: boolean; user: { id: string; email: string; name: string } }>(res);
+}
+
+export async function removeAdminModerator(contestId: string, userId: string): Promise<{ success: boolean; demotedToParticipant: boolean }> {
+  const res = await request<unknown>(`/admin/contests/${encodeURIComponent(contestId)}/moderators/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+  });
+  return unwrapData<{ success: boolean; demotedToParticipant: boolean }>(res);
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  const res = await request<unknown>("/admin/stats");
+  return unwrapData<AdminStats>(res);
 }

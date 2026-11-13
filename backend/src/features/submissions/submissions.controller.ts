@@ -6,6 +6,7 @@ import { submitCode, getOwnSubmissions, getOwnSubmission } from "./submissions.s
 import {prisma} from "../../config/db.js";
 import { runSampleTestsDetailed } from "../judge/judge.js";
 import { getLanguageLimits } from "../judge/judge.limits.js";
+import { sanitizeCompileOutput } from "../judge/judge.sanitize.js";
 
 const MAX_CODE_SIZE_BYTES = 64 * 1024; // 64 KB
 
@@ -105,6 +106,20 @@ const runCodeController = asyncHandler(async (req: Request, res: Response) => {
         throw new ApiError(400, "Code payload exceeds the 64 KB limit.");
     }
 
+    // Invariant: One-pending-action rule (cannot run code while judging a submission)
+    if (membership?.contestId && membership?.userId) {
+        const pending = await prisma.submission.findFirst({
+            where: {
+                contestId: membership.contestId,
+                userId: membership.userId,
+                status: { in: ["queued", "judging"] }
+            }
+        });
+        if (pending) {
+            throw new ApiError(429, "You have a submission currently being judged. Please wait for it to complete.");
+        }
+    }
+
     // Fetch sample test cases for this problem
     let tests: { input: string; expectedOutput: string }[] = [];
 
@@ -148,6 +163,10 @@ const runCodeController = asyncHandler(async (req: Request, res: Response) => {
 
     const limits = getLanguageLimits(language as Language);
     const result = await runSampleTestsDetailed(codeToExecute, language as Language, tests, limits);
+
+    if (result.compileError) {
+        result.compileError = sanitizeCompileOutput(result.compileError, code) || "";
+    }
 
     return res.status(200).json({
         success: true,
