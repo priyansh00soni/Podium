@@ -27,7 +27,7 @@ import ApiError from "./utils/ApiError.js";
 import { logger } from "./utils/logger.js";
 import { leaderboardRouter } from "./features/leaderboard/leaderboard.routes.js";
 import { healthRouter } from "./features/health/health.routes.js";
-import { adminRouter } from "./features/admin/admin.routes.js";
+import moderatorRouter from "./features/moderator/moderator.routes.js";
 import contestRouter from "./features/contest/contest.routes.js";
 import eventsRouter from "./features/events/events.routes.js";
 
@@ -36,7 +36,7 @@ app.use('/api/v1', problemsRouter);
 app.use('/api/v1', submissionsRouter);
 app.use('/api/v1', leaderboardRouter);
 app.use('/api/v1', healthRouter);
-app.use("/api/v1", adminRouter);
+app.use("/api/v1", moderatorRouter);
 app.use("/api/v1", contestRouter);
 app.use("/api/v1", eventsRouter);
 

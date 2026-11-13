@@ -1,8 +1,7 @@
 import { Request, Response } from "express";
-import { createProblemWithTests } from "./admin.service.js";
+import { createProblemWithTests } from "./moderator.service.js";
 import ApiError from "../../utils/ApiError.js";
 import asyncHandler from "../../utils/asyncHandler.js";
-
 
 export const createProblem = asyncHandler(async (req: Request, res: Response) => {
     // 1. Extract params and middleware payload
@@ -10,7 +9,6 @@ export const createProblem = asyncHandler(async (req: Request, res: Response) =>
     const { number, title, statement, points, type = "coding", testCases, starterCode, driverCode } = req.body;
 
     // 2. Strict Role Check: Must be a moderator
-    // (If platform admin is allowed, ensure requireSession handles that logic)
     if (membership.role !== "moderator") {
         throw new ApiError(403, "Only staff can create problems for this contest.");
     }

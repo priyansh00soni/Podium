@@ -6,8 +6,9 @@ import ApiError from "../../utils/ApiError.js";
 import { prisma } from "../../config/db.js";
 
 const authMid = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const sessionId = req.cookies.sessionId;
-    const slug = req.params.slug as string;
+    const slug = (req.params.slug as string)?.toLowerCase();
+    const cookieName = slug ? `sid_${slug}` : "sessionId";
+    const sessionId = req.cookies[cookieName] || req.cookies.sessionId;
 
     if (!sessionId) throw new ApiError(401, "Session cookie missing.");
 

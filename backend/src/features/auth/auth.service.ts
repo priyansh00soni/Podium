@@ -18,7 +18,40 @@ const handleLogin = async (code: string, slug: string, sessionContext: SessionCo
     }
 
     const email = normalizeEmail(payload.email);
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const isPlatformAdmin = existingUser?.platformRole === "admin";
 
+    // Platform Super Admin Login path
+    if (slug === "admin") {
+        if (!existingUser || !isPlatformAdmin) {
+            throw new ApiError(403, "You do not have platform administrator privileges.");
+        }
+
+        // Anchor session to an existing contest to satisfy DB relation
+        const anchorContest = await prisma.contest.findFirst({ orderBy: { createdAt: "desc" } });
+        if (!anchorContest) {
+            throw new ApiError(500, "Cannot initialize admin session: No contest found to anchor session.");
+        }
+
+        const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000);
+        const session = await prisma.session.create({
+            data: {
+                contestId: anchorContest.id,
+                userId: existingUser.id,
+                ip: sessionContext.ip,
+                userAgent: sessionContext.userAgent,
+                expiresAt,
+            }
+        });
+
+        return {
+            sessionId: session.id,
+            slug: "admin",
+            isPlatformAdmin: true,
+        };
+    }
+
+    // Contest Login path
     const contest = await prisma.contest.findUnique({
         where: { slug }
     });
@@ -27,18 +60,26 @@ const handleLogin = async (code: string, slug: string, sessionContext: SessionCo
     const allowed = await prisma.allowedEmail.findFirst({
         where: { contestId: contest.id, email }
     });
-    if (!allowed) throw new ApiError(403, "You are not on the registration list for this contest.");
+    
+    // Platform admin bypasses contest allowlist
+    if (!allowed && !isPlatformAdmin) {
+        throw new ApiError(403, "You are not on the registration list for this contest.");
+    }
 
     const user = await prisma.user.upsert({
         where: { email },
         update: {},
-        create: {  email, name: allowed.name ?? payload.name ?? email  }
+        create: { email, name: allowed?.name ?? payload.name ?? email }
     });
 
     const membership = await prisma.contestParticipant.upsert({
         where: { contestId_userId: { contestId: contest.id, userId: user.id } },
         update: {},
-        create: { contestId: contest.id, userId: user.id, role: "participant" }
+        create: {
+            contestId: contest.id,
+            userId: user.id,
+            role: isPlatformAdmin ? "moderator" : "participant"
+        }
     });
 
     const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000);
@@ -57,7 +98,11 @@ const handleLogin = async (code: string, slug: string, sessionContext: SessionCo
         data: { activeSessionId: session.id }
     });
 
-    return session.id;
+    return {
+        sessionId: session.id,
+        slug,
+        isPlatformAdmin: isPlatformAdmin || user.platformRole === "admin",
+    };
 };
 
 const findSession = async (sessionId: string, contestId: string) => {
