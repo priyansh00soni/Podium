@@ -118,8 +118,7 @@ export function SessionGate({ slug, children }: SessionGateProps) {
             Sign in with Google to take part
           </h2>
           <p className="text-sm text-[#8b8b94] leading-relaxed">
-            Use the Google account whose email is on this contest&apos;s registration list.
-            First-time sign-in creates your participant account.
+            Sign in with your Google account. First-time sign-in creates your participant account for this contest.
           </p>
           <div className="pt-2">
             <Button href={signInUrl} variant="primary" size="md">

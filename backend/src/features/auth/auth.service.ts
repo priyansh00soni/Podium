@@ -2,13 +2,14 @@ import { CALLBACK_URL, googleClient } from "../../config/google.js";
 import { normalizeEmail } from "../../utils/normalize.js";
 import ApiError from "../../utils/ApiError.js";
 import { prisma } from "../../config/db.js";
+import type { Contest, User } from "../../generated/prisma/client.js";
 
 type SessionContext = {
     ip: string;
     userAgent: string;
 };
 
-const handleLogin = async (code: string, slug: string, sessionContext: SessionContext) => {
+const handleLogin = async (code: string, sessionContext: SessionContext) => {
     const { tokens } = await googleClient.getToken({ code, redirect_uri: CALLBACK_URL });
     const ticket = await googleClient.verifyIdToken({ idToken: tokens.id_token! });
     const payload = ticket.getPayload();
@@ -18,74 +19,18 @@ const handleLogin = async (code: string, slug: string, sessionContext: SessionCo
     }
 
     const email = normalizeEmail(payload.email);
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    const isPlatformAdmin = existingUser?.platformRole === "admin";
+    const name = payload.name ?? email;
 
-    // Platform Super Admin Login path
-    if (slug === "admin") {
-        if (!existingUser || !isPlatformAdmin) {
-            throw new ApiError(403, "You do not have platform administrator privileges.");
-        }
-
-        // Anchor session to an existing contest to satisfy DB relation
-        const anchorContest = await prisma.contest.findFirst({ orderBy: { createdAt: "desc" } });
-        if (!anchorContest) {
-            throw new ApiError(500, "Cannot initialize admin session: No contest found to anchor session.");
-        }
-
-        const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000);
-        const session = await prisma.session.create({
-            data: {
-                contestId: anchorContest.id,
-                userId: existingUser.id,
-                ip: sessionContext.ip,
-                userAgent: sessionContext.userAgent,
-                expiresAt,
-            }
-        });
-
-        return {
-            sessionId: session.id,
-            slug: "admin",
-            isPlatformAdmin: true,
-        };
-    }
-
-    // Contest Login path
-    const contest = await prisma.contest.findUnique({
-        where: { slug }
-    });
-    if (!contest) throw new ApiError(404, "Contest not found.");
-
-    const allowed = await prisma.allowedEmail.findFirst({
-        where: { contestId: contest.id, email }
-    });
-    
-    // Platform admin bypasses contest allowlist
-    if (!allowed && !isPlatformAdmin) {
-        throw new ApiError(403, "You are not on the registration list for this contest.");
-    }
-
+    // Platform user creation or retrieval
     const user = await prisma.user.upsert({
         where: { email },
         update: {},
-        create: { email, name: allowed?.name ?? payload.name ?? email }
-    });
-
-    const membership = await prisma.contestParticipant.upsert({
-        where: { contestId_userId: { contestId: contest.id, userId: user.id } },
-        update: {},
-        create: {
-            contestId: contest.id,
-            userId: user.id,
-            role: isPlatformAdmin ? "moderator" : "participant"
-        }
+        create: { email, name }
     });
 
     const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000);
     const session = await prisma.session.create({
         data: {
-            contestId: contest.id,
             userId: user.id,
             ip: sessionContext.ip,
             userAgent: sessionContext.userAgent,
@@ -93,82 +38,98 @@ const handleLogin = async (code: string, slug: string, sessionContext: SessionCo
         }
     });
 
-    await prisma.contestParticipant.update({
-        where: { id: membership.id },
-        data: { activeSessionId: session.id }
-    });
-
     return {
         sessionId: session.id,
-        slug,
-        isPlatformAdmin: isPlatformAdmin || user.platformRole === "admin",
+        user
     };
 };
 
-const findSession = async (sessionId: string, contestId: string) => {
+const findSession = async (sessionId: string) => {
     const session = await prisma.session.findUnique({
         where: { id: sessionId },
-        include: {
-            user: {
-                include: {
-                    participants: {
-                        where: {
-                            contestId,
-                            deletedAt: null,
-                            disqualifiedAt: null
-                        },
-                        include: { user: true },
-                        take: 1
-                    }
-                }
-            }
-        }
+        include: { user: true }
     });
 
     if (!session || session.expiresAt < new Date()) {
         return null;
     }
 
-    let membership = session.user.participants[0] || null;
-
-    // Super Admin auto-moderator provision for any contest
-    if (!membership && session.user.platformRole === "admin") {
-        membership = await prisma.contestParticipant.upsert({
-            where: { contestId_userId: { contestId, userId: session.userId } },
-            update: { role: "moderator", deletedAt: null, disqualifiedAt: null },
-            create: { contestId, userId: session.userId, role: "moderator" },
-            include: { user: true }
-        });
-    }
-
-    return membership;
+    return session;
 };
 
-const getCurrentParticipant = async (contestId: string, participantId: string) => {
-    const participant = await prisma.contestParticipant.findFirst({
-        where: { id: participantId, contestId },
-        select: {
-            id: true,
-            role: true,
-            user: { select: { id: true, name: true, email: true } },
-            submissions: {
-                where: { contestId, status: { in: ["queued", "judging"] } },
-                take: 1,
-                select: { id: true }
-            }
-        }
+const resolveContestParticipant = async (user: User, contest: Contest, sessionId: string) => {
+    // 1. Check existing participant record
+    let participant = await prisma.contestParticipant.findFirst({
+        where: {
+            contestId: contest.id,
+            userId: user.id,
+            deletedAt: null,
+            disqualifiedAt: null
+        },
+        include: { user: true }
     });
 
-    if (!participant) throw new ApiError(401, "Session invalid or expired.");
+    // 2. Super admin gets automatic moderator access to all contests
+    if (user.platformRole === "admin") {
+        if (!participant) {
+            participant = await prisma.contestParticipant.create({
+                data: {
+                    contestId: contest.id,
+                    userId: user.id,
+                    role: "moderator",
+                    activeSessionId: sessionId
+                },
+                include: { user: true }
+            });
+        }
+        return participant;
+    }
 
-    return {
-        id: participant.user.id,
-        participantId: participant.id,
-        name: participant.user.name,
-        email: participant.user.email,
-        role: participant.role,
-        pending: participant.submissions.length > 0
-    };
+    // 3. If already registered, update activeSessionId if it changed and return
+    if (participant) {
+        if (participant.activeSessionId !== sessionId) {
+            await prisma.contestParticipant.update({
+                where: { id: participant.id },
+                data: { activeSessionId: sessionId }
+            });
+        }
+        return participant;
+    }
+
+    // 4. Model 2: Open Contest (any signed-in user automatically enrolled upon entering)
+    if (contest.accessType === "open") {
+        participant = await prisma.contestParticipant.create({
+            data: {
+                contestId: contest.id,
+                userId: user.id,
+                role: "participant",
+                activeSessionId: sessionId
+            },
+            include: { user: true }
+        });
+        return participant;
+    }
+
+    // 5. Model 1: Invite Only (enforces whitelist from allowed_emails)
+    const allowed = await prisma.allowedEmail.findFirst({
+        where: { contestId: contest.id, email: user.email }
+    });
+
+    if (!allowed) {
+        throw new ApiError(403, "This is a private contest. You are not on the registration list.");
+    }
+
+    participant = await prisma.contestParticipant.create({
+        data: {
+            contestId: contest.id,
+            userId: user.id,
+            role: "participant",
+            activeSessionId: sessionId
+        },
+        include: { user: true }
+    });
+
+    return participant;
 };
 
-export { handleLogin, findSession, getCurrentParticipant };
+export { handleLogin, findSession, resolveContestParticipant };

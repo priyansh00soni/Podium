@@ -7,6 +7,7 @@ export type Membership = ContestParticipant & {
 declare global {
     namespace Express {
         interface Request {
+            user?: User;
             membership?: Membership;
             contest?: Contest;
             adminUser?: User;

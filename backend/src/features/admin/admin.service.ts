@@ -13,6 +13,7 @@ export const listAllContests = async () => {
             startsAt: true,
             endsAt: true,
             leaderboardPublished: true,
+            accessType: true,
             createdAt: true,
             _count: {
                 select: {
@@ -81,6 +82,7 @@ export const createContest = async (
         startsAt: string | Date;
         endsAt: string | Date;
         leaderboardPublished?: boolean;
+        accessType?: "invite_only" | "open";
     }
 ) => {
     const slug = data.slug.trim().toLowerCase();
@@ -104,6 +106,8 @@ export const createContest = async (
         throw new ApiError(400, "Contest end time must be after start time.");
     }
 
+    const accessType = data.accessType === "open" ? "open" : "invite_only";
+
     const contest = await prisma.contest.create({
         data: {
             slug,
@@ -112,6 +116,7 @@ export const createContest = async (
             startsAt,
             endsAt,
             leaderboardPublished: Boolean(data.leaderboardPublished),
+            accessType,
         }
     });
 
@@ -144,6 +149,7 @@ export const updateContest = async (
         startsAt?: string | Date;
         endsAt?: string | Date;
         leaderboardPublished?: boolean;
+        accessType?: "invite_only" | "open";
     }
 ) => {
     const contest = await prisma.contest.findFirst({
@@ -158,6 +164,7 @@ export const updateContest = async (
     if (data.title !== undefined) updatePayload.title = data.title.trim();
     if (data.description !== undefined) updatePayload.description = data.description.trim() || null;
     if (data.leaderboardPublished !== undefined) updatePayload.leaderboardPublished = Boolean(data.leaderboardPublished);
+    if (data.accessType !== undefined) updatePayload.accessType = data.accessType === "open" ? "open" : "invite_only";
 
     // Schedule guardrails:
     if (data.startsAt !== undefined) {

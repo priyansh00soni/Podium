@@ -11,7 +11,8 @@ const getContestDetails = async (contestId: string) => {
             description: true,
             startsAt: true,
             endsAt: true,
-            leaderboardPublished: true
+            leaderboardPublished: true,
+            accessType: true
         }
     });
 

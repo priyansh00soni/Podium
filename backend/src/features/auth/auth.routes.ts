@@ -4,16 +4,22 @@ import {
     startAdminLoginController,
     loginController,
     getMeController,
-    getPlatformMeController
+    getPlatformMeController,
+    logoutController
 } from "./auth.controller.js";
 import requireSession from "./auth.middleware.js";
 
 const router = Router();
 
-router.get("/c/:slug/auth/google", startLoginController);
+// Unified Google sign-in (supports ?returnTo=...)
+router.get("/auth/google", startLoginController);
 router.get("/auth/google/admin", startAdminLoginController);
+router.get("/c/:slug/auth/google", startLoginController);
 router.get("/login", loginController);
-router.get("/c/:slug/me", requireSession, getMeController);
+router.post("/logout", logoutController);
+
+// Profile inspection
 router.get("/me", getPlatformMeController);
+router.get("/c/:slug/me", requireSession, getMeController);
 
 export default router;

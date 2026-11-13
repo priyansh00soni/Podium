@@ -6,12 +6,19 @@ import { CALLBACK_URL, googleClient } from "../../config/google.js";
 import { prisma } from "../../config/db.js";
 
 const startLoginController = asyncHandler(async (req: Request, res: Response) => {
-    const slug = (req.params.slug as string).toLowerCase();
+    // Determine redirect destination after login
+    let returnTo = (req.query.returnTo as string) || "";
+    if (!returnTo && req.params.slug) {
+        returnTo = `/c/${req.params.slug}`;
+    }
+    if (!returnTo) {
+        returnTo = "/";
+    }
 
     const authUrl = googleClient.generateAuthUrl({
         scope: ["openid", "email", "profile"],
         redirect_uri: CALLBACK_URL,
-        state: slug,
+        state: returnTo,
     });
 
     return res.redirect(authUrl);
@@ -21,7 +28,7 @@ const startAdminLoginController = asyncHandler(async (req: Request, res: Respons
     const authUrl = googleClient.generateAuthUrl({
         scope: ["openid", "email", "profile"],
         redirect_uri: CALLBACK_URL,
-        state: "admin",
+        state: "/admin",
     });
 
     return res.redirect(authUrl);
@@ -31,11 +38,11 @@ const loginController = asyncHandler(async (req: Request, res: Response) => {
     if (req.query.error) throw new ApiError(400, "Google sign-in was cancelled.");
 
     const code = req.query.code as string | undefined;
-    const slug = req.query.state as string | undefined;
+    const returnTo = (req.query.state as string) || "/";
 
-    if (!code || !slug) throw new ApiError(400, "Missing code or state.");
+    if (!code) throw new ApiError(400, "Missing authorization code.");
 
-    const loginResult = await handleLogin(code, slug.toLowerCase(), {
+    const loginResult = await handleLogin(code, {
         ip: req.ip ?? "",
         userAgent: req.get("user-agent") ?? "",
     });
@@ -48,21 +55,24 @@ const loginController = asyncHandler(async (req: Request, res: Response) => {
         path: "/",
     };
 
-    // Isolated cookies per contest and for platform admin
-    if (loginResult.slug === "admin" || loginResult.isPlatformAdmin) {
-        res.cookie("sid_platform", loginResult.sessionId, cookieOptions);
-    }
-    if (loginResult.slug && loginResult.slug !== "admin") {
-        res.cookie(`sid_${loginResult.slug}`, loginResult.sessionId, cookieOptions);
-    }
-    // Backward-compatible fallback
+    // Standard session cookie for the whole platform
     res.cookie("sessionId", loginResult.sessionId, cookieOptions);
+    // Legacy compatibility cookie
+    res.cookie("sid_platform", loginResult.sessionId, cookieOptions);
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    if (loginResult.slug === "admin") {
-        return res.redirect(`${frontendUrl}/admin`);
+
+    // Route administrators to /admin by default if no specific return path was requested
+    let targetPath = returnTo;
+    if (loginResult.user.platformRole === "admin" && (returnTo === "/" || returnTo === "admin")) {
+        targetPath = "/admin";
     }
-    return res.redirect(`${frontendUrl}/c/${loginResult.slug}`);
+
+    if (!targetPath.startsWith("/")) {
+        targetPath = `/${targetPath}`;
+    }
+
+    return res.redirect(`${frontendUrl}${targetPath}`);
 });
 
 const getMeController = asyncHandler(async (req: Request, res: Response) => {
@@ -83,16 +93,7 @@ const getMeController = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const getPlatformMeController = asyncHandler(async (req: Request, res: Response) => {
-    const cookies = req.cookies || {};
-    let sessionId = cookies.sid_platform || cookies.sessionId;
-    if (!sessionId) {
-        for (const [key, val] of Object.entries(cookies)) {
-            if (key.startsWith("sid_") && typeof val === "string") {
-                sessionId = val;
-                break;
-            }
-        }
-    }
+    const sessionId = req.cookies?.sessionId || req.cookies?.sid_platform;
 
     if (!sessionId) {
         return res.status(200).json({ success: true, data: null });
@@ -118,10 +119,22 @@ const getPlatformMeController = asyncHandler(async (req: Request, res: Response)
     });
 });
 
+const logoutController = asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = req.cookies?.sessionId || req.cookies?.sid_platform;
+    if (sessionId) {
+        await prisma.session.deleteMany({ where: { id: sessionId } });
+    }
+
+    res.clearCookie("sessionId", { path: "/" });
+    res.clearCookie("sid_platform", { path: "/" });
+    return res.status(200).json({ success: true, message: "Logged out successfully." });
+});
+
 export {
     startLoginController,
     startAdminLoginController,
     loginController,
     getMeController,
-    getPlatformMeController
+    getPlatformMeController,
+    logoutController
 };

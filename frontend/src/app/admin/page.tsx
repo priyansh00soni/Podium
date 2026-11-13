@@ -44,6 +44,7 @@ export default function SuperAdminPage() {
   const [newStartsAt, setNewStartsAt] = useState("");
   const [newEndsAt, setNewEndsAt] = useState("");
   const [newPublishBoard, setNewPublishBoard] = useState(false);
+  const [newAccessType, setNewAccessType] = useState<"invite_only" | "open">("invite_only");
   const [creatingContest, setCreatingContest] = useState(false);
 
   // Edit Contest Modal State
@@ -52,6 +53,7 @@ export default function SuperAdminPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editEndsAt, setEditEndsAt] = useState("");
   const [editPublishBoard, setEditPublishBoard] = useState(false);
+  const [editAccessType, setEditAccessType] = useState<"invite_only" | "open">("invite_only");
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Selected Contest for Whitelist & Moderators tabs
@@ -163,6 +165,7 @@ export default function SuperAdminPage() {
         startsAt: new Date(newStartsAt).toISOString(),
         endsAt: new Date(newEndsAt).toISOString(),
         leaderboardPublished: newPublishBoard,
+        accessType: newAccessType,
       });
 
       showToast(`Contest '${created.title}' created successfully!`, "success");
@@ -172,6 +175,7 @@ export default function SuperAdminPage() {
       setNewDesc("");
       setNewStartsAt("");
       setNewEndsAt("");
+      setNewAccessType("invite_only");
       loadContests();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Could not create contest", "error");
@@ -189,6 +193,7 @@ export default function SuperAdminPage() {
     const endStr = new Date(c.endsAt).toISOString().slice(0, 16);
     setEditEndsAt(endStr);
     setEditPublishBoard(c.leaderboardPublished);
+    setEditAccessType(c.accessType || "invite_only");
   };
 
   // Save Edit Contest
@@ -203,6 +208,7 @@ export default function SuperAdminPage() {
         description: editDesc.trim() || undefined,
         endsAt: new Date(editEndsAt).toISOString(),
         leaderboardPublished: editPublishBoard,
+        accessType: editAccessType,
       });
 
       showToast("Contest updated successfully!", "success");
@@ -327,7 +333,7 @@ export default function SuperAdminPage() {
               size="md"
               className="w-full justify-center"
             >
-              Sign In with Google (Admin)
+              Sign In with Google
             </Button>
             <div className="text-[11px] text-[#5a5a63] font-mono">
               Note: &apos;platformRole = admin&apos; must be set in PostgreSQL on the users table.
@@ -527,6 +533,16 @@ export default function SuperAdminPage() {
                               Board Hidden
                             </span>
                           )}
+
+                          {c.accessType === "open" ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono text-cyan-400 bg-cyan-500/10 border border-cyan-500/20">
+                              Open Access
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono text-purple-400 bg-purple-500/10 border border-purple-500/20">
+                              Invite Only
+                            </span>
+                          )}
                         </div>
 
                         <div className="text-xs text-[#8b8b94] font-mono flex items-center gap-4 flex-wrap">
@@ -645,6 +661,18 @@ export default function SuperAdminPage() {
                       </label>
                     </div>
 
+                    <label className="space-y-1 block">
+                      <span className="text-[#8b8b94] font-mono uppercase">Contest Access Model</span>
+                      <select
+                        value={newAccessType}
+                        onChange={(e) => setNewAccessType(e.target.value as "invite_only" | "open")}
+                        className="w-full bg-[#0a0a0b] border border-[#26262b] rounded-md px-3 py-2 text-xs text-[#ededf0] focus:ring-1 focus:ring-[#6D4AFF] focus:outline-none"
+                      >
+                        <option value="invite_only">Invite Only (Enforces registration whitelist / allowed emails)</option>
+                        <option value="open">Open (Public - any registered user can join instantly)</option>
+                      </select>
+                    </label>
+
                     <label className="flex items-center gap-2 cursor-pointer select-none pt-1">
                       <input
                         type="checkbox"
@@ -730,6 +758,18 @@ export default function SuperAdminPage() {
                         onChange={(e) => setEditDesc(e.target.value)}
                         className="w-full bg-[#0a0a0b] border border-[#26262b] rounded-md px-3 py-2 text-xs text-[#ededf0] focus:ring-1 focus:ring-[#6D4AFF] focus:outline-none"
                       />
+                    </label>
+
+                    <label className="space-y-1 block">
+                      <span className="text-[#8b8b94] font-mono uppercase">Contest Access Model</span>
+                      <select
+                        value={editAccessType}
+                        onChange={(e) => setEditAccessType(e.target.value as "invite_only" | "open")}
+                        className="w-full bg-[#0a0a0b] border border-[#26262b] rounded-md px-3 py-2 text-xs text-[#ededf0] focus:ring-1 focus:ring-[#6D4AFF] focus:outline-none"
+                      >
+                        <option value="invite_only">Invite Only (Enforces registration whitelist / allowed emails)</option>
+                        <option value="open">Open (Public - any registered user can join instantly)</option>
+                      </select>
                     </label>
 
                     <label className="flex items-center gap-2 cursor-pointer select-none pt-1">

@@ -58,7 +58,7 @@ export default function ContestsListPage() {
       <div className="space-y-8">
         <PageHeader
           title="Contests"
-          subtitle="Open a contest by its slug, then sign in with the Google account on the registration list."
+          subtitle="Enter a contest by its slug to participate. Contests can be open to all or invite-only."
           actions={
             backendOk === null ? null : (
               <span
@@ -89,7 +89,7 @@ export default function ContestsListPage() {
               </Button>
             </div>
             <p className="text-xs text-[#5a5a63]">
-              Google sign-in is per contest. You must already be on that contest&apos;s allowed email list.
+              Sign in with your Google account to participate in open contests or access invite-only events.
             </p>
           </form>
         </Card>

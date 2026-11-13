@@ -26,7 +26,7 @@ export const getContestDetailController = asyncHandler(async (req: Request, res:
 
 export const createContestController = asyncHandler(async (req: Request, res: Response) => {
     const adminUser = req.adminUser!;
-    const { slug, title, description, startsAt, endsAt, leaderboardPublished } = req.body;
+    const { slug, title, description, startsAt, endsAt, leaderboardPublished, accessType } = req.body;
 
     if (!slug || !title || !startsAt || !endsAt) {
         throw new ApiError(400, "Missing required fields: slug, title, startsAt, endsAt are required.");
@@ -39,6 +39,7 @@ export const createContestController = asyncHandler(async (req: Request, res: Re
         startsAt,
         endsAt,
         leaderboardPublished,
+        accessType,
     });
 
     return res.status(201).json({ success: true, data: contest });
@@ -47,7 +48,7 @@ export const createContestController = asyncHandler(async (req: Request, res: Re
 export const updateContestController = asyncHandler(async (req: Request, res: Response) => {
     const adminUser = req.adminUser!;
     const contestId = String(req.params.id);
-    const { title, description, startsAt, endsAt, leaderboardPublished } = req.body;
+    const { title, description, startsAt, endsAt, leaderboardPublished, accessType } = req.body;
 
     const contest = await updateContest(adminUser.id, contestId, {
         title,
@@ -55,6 +56,7 @@ export const updateContestController = asyncHandler(async (req: Request, res: Re
         startsAt,
         endsAt,
         leaderboardPublished,
+        accessType,
     });
 
     return res.status(200).json({ success: true, data: contest });

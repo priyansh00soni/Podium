@@ -1,30 +1,36 @@
 import type { NextFunction, Request, Response } from "express";
 import asyncHandler from "../../utils/asyncHandler.js";
-
-import { findSession } from "./auth.service.js";
 import ApiError from "../../utils/ApiError.js";
 import { prisma } from "../../config/db.js";
+import { findSession, resolveContestParticipant } from "./auth.service.js";
 
 const authMid = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const slug = (req.params.slug as string)?.toLowerCase();
-    const cookieName = slug ? `sid_${slug}` : "sessionId";
-    const sessionId = req.cookies[cookieName] || req.cookies.sessionId;
+    const sessionId = req.cookies.sessionId || req.cookies.sid_platform;
 
-    if (!sessionId) throw new ApiError(401, "Session cookie missing.");
+    if (!sessionId) {
+        throw new ApiError(401, "Please sign in to continue.");
+    }
+
+    const session = await findSession(sessionId);
+    if (!session) {
+        throw new ApiError(401, "Session expired or invalid. Please sign in again.");
+    }
 
     const contest = await prisma.contest.findUnique({
         where: { slug }
     });
 
-    if (!contest) throw new ApiError(404, "Contest not found.");
+    if (!contest) {
+        throw new ApiError(404, "Contest not found.");
+    }
 
-    const membership = await findSession(sessionId, contest.id);
+    const membership = await resolveContestParticipant(session.user, contest, sessionId);
 
-    if (!membership) throw new ApiError(401, "Session invalid or expired.");
-
-    req.membership = membership;
+    req.user = session.user;
     req.contest = contest;
-    
+    req.membership = membership;
+
     next();
 });
 

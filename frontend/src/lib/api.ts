@@ -34,6 +34,7 @@ export interface ContestDetail {
   endsAt?: string;
   state: ContestState;
   leaderboardPublished: boolean;
+  accessType?: "invite_only" | "open";
   serverNow?: string;
 }
 
@@ -210,12 +211,16 @@ export function letterFromNumber(number: number): string {
   return String.fromCharCode(64 + number);
 }
 
-export function getSignInUrl(slug: string): string {
-  return `${API_PREFIX}/c/${encodeURIComponent(slug)}/auth/google`;
+export function getSignInUrl(slugOrPath?: string): string {
+  if (slugOrPath) {
+    const returnTo = slugOrPath.startsWith("/") ? slugOrPath : `/c/${slugOrPath}`;
+    return `${API_PREFIX}/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
+  }
+  return `${API_PREFIX}/auth/google`;
 }
 
 export function getAdminSignInUrl(): string {
-  return `${API_PREFIX}/auth/google/admin`;
+  return `${API_PREFIX}/auth/google?returnTo=/admin`;
 }
 
 export async function getPlatformMe(signal?: AbortSignal): Promise<PlatformUser | null> {
@@ -536,6 +541,7 @@ export interface AdminContestSummary {
   startsAt: string;
   endsAt: string;
   leaderboardPublished: boolean;
+  accessType?: "invite_only" | "open";
   createdAt: string;
   _count: {
     participants: number;
@@ -558,6 +564,7 @@ export interface CreateAdminContestPayload {
   startsAt: string;
   endsAt: string;
   leaderboardPublished?: boolean;
+  accessType?: "invite_only" | "open";
 }
 
 export interface UpdateAdminContestPayload {
@@ -566,6 +573,7 @@ export interface UpdateAdminContestPayload {
   startsAt?: string;
   endsAt?: string;
   leaderboardPublished?: boolean;
+  accessType?: "invite_only" | "open";
 }
 
 export interface AdminStats {

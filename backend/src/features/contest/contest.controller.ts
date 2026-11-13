@@ -20,6 +20,7 @@ const getContestController = asyncHandler(async (req: Request, res: Response) =>
                 startsAt: req.contest.startsAt,
                 endsAt: req.contest.endsAt,
                 leaderboardPublished: req.contest.leaderboardPublished,
+                accessType: req.contest.accessType,
                 state: getContestState(req.contest.startsAt, req.contest.endsAt, serverNow),
                 serverNow
             }

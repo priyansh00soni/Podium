@@ -17,6 +17,11 @@ enum PlatformRole {
   admin
 }
 
+enum ContestAccessType {
+  invite_only
+  open
+}
+
 enum ParticipantRole {
   participant
   moderator
@@ -86,14 +91,15 @@ model User {
 }
 
 model Contest {
-  id                   String   @id @default(uuid())
-  slug                 String   @unique
+  id                   String            @id @default(uuid())
+  slug                 String            @unique
   title                String
-  description          String?  @db.Text
+  description          String?           @db.Text
   startsAt             DateTime
   endsAt               DateTime
-  leaderboardPublished Boolean  @default(false)
-  createdAt            DateTime @default(now())
+  leaderboardPublished Boolean           @default(false)
+  accessType           ContestAccessType @default(invite_only)
+  createdAt            DateTime          @default(now())
 
   allowedEmails AllowedEmail[]
   participants  ContestParticipant[]
@@ -143,15 +149,15 @@ model ContestParticipant {
 
 model Session {
   id        String   @id @default(uuid())
-  contestId String
+  contestId String?
   userId    String
   ip        String
   userAgent String
   createdAt DateTime @default(now())
   expiresAt DateTime
 
-  contest Contest @relation(fields: [contestId], references: [id], onDelete: Restrict)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contest Contest? @relation(fields: [contestId], references: [id], onDelete: SetNull)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   activeForParticipants ContestParticipant[] @relation("ActiveSession")
 
