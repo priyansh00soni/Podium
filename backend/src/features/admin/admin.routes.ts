@@ -5,8 +5,6 @@ import {
     getContestDetailController,
     createContestController,
     updateContestController,
-    addAllowedEmailsController,
-    removeAllowedEmailController,
     assignModeratorController,
     removeModeratorController,
     getStatsController
@@ -22,13 +20,9 @@ router.post("/contests", createContestController);
 router.get("/contests/:id", getContestDetailController);
 router.patch("/contests/:id", updateContestController);
 
-router.post("/contests/:id/allowed-emails", addAllowedEmailsController);
-router.delete("/contests/:id/allowed-emails/:email", removeAllowedEmailController);
-
 router.post("/contests/:id/moderators", assignModeratorController);
 router.delete("/contests/:id/moderators/:userId", removeModeratorController);
 
 router.get("/stats", getStatsController);
 
 export default router;
-

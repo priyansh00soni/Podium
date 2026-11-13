@@ -6,8 +6,6 @@ import {
     getAdminContestDetail,
     createContest,
     updateContest,
-    addAllowedEmails,
-    removeAllowedEmail,
     assignModerator,
     removeModerator,
     getPlatformStats
@@ -62,30 +60,6 @@ export const updateContestController = asyncHandler(async (req: Request, res: Re
     return res.status(200).json({ success: true, data: contest });
 });
 
-export const addAllowedEmailsController = asyncHandler(async (req: Request, res: Response) => {
-    const adminUser = req.adminUser!;
-    const contestId = String(req.params.id);
-    const { emails } = req.body;
-
-    if (!Array.isArray(emails) || emails.length === 0) {
-        throw new ApiError(400, "Array of email addresses is required.");
-    }
-
-    const result = await addAllowedEmails(adminUser.id, contestId, emails);
-    return res.status(200).json({ success: true, data: result });
-});
-
-export const removeAllowedEmailController = asyncHandler(async (req: Request, res: Response) => {
-    const adminUser = req.adminUser!;
-    const contestId = String(req.params.id);
-    const email = String(req.params.email);
-
-    if (!email) throw new ApiError(400, "Email parameter is required.");
-
-    const result = await removeAllowedEmail(adminUser.id, contestId, email);
-    return res.status(200).json({ success: true, data: result });
-});
-
 export const assignModeratorController = asyncHandler(async (req: Request, res: Response) => {
     const adminUser = req.adminUser!;
     const contestId = String(req.params.id);
@@ -114,4 +88,3 @@ export const getStatsController = asyncHandler(async (req: Request, res: Respons
     const stats = await getPlatformStats();
     return res.status(200).json({ success: true, data: stats });
 });
-
