@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #0a0a0b;
+    color: #ededf0;
+    overscroll-behavior: none;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #26262b;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+  }
+}
+
+.hero-title-gradient {
+  background: linear-gradient(180deg, #ffffff 30%, #b4aecb 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -2px;
+  line-height: 1.08;
+}
+
+.cta-pill-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(196, 127, 229, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 20px -2px rgba(196, 127, 229, 0.25),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.cta-pill-btn:hover {
+  border-color: rgba(219, 189, 247, 0.7);
+  box-shadow:
+    0 0 25px 2px rgba(196, 127, 229, 0.45),
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.horizon-glow-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1400px;
+  height: 380px;
+  background: radial-gradient(
+    ellipse 65% 36% at 50% 50%,
+    #dbbdf7 0%,
+    #c47fe5 22%,
+    #8338c4 48%,
+    rgba(131, 56, 196, 0.4) 65%,
+    transparent 78%
+  );
+  filter: blur(42px);
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+.horizon-laser-streak {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100vw;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 5%,
+    rgba(219, 189, 247, 0.4) 25%,
+    #ffffff 50%,
+    rgba(219, 189, 247, 0.4) 75%,
+    transparent 95%
+  );
+  box-shadow:
+    0 0 35px 6px rgb(219, 189, 247),
+    0 0 70px 14px rgba(196, 127, 229, 0.85);
+  pointer-events: none;
+}
+
+.dashboard-mockup-wrapper {
+  border: 1px solid rgba(196, 127, 229, 0.22);
+  border-radius: 16px;
+  background: rgba(16, 8, 30, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 -10px 40px -10px rgba(196, 127, 229, 0.25);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 35%, rgba(0, 0, 0, 0) 95%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 35%, rgba(0, 0, 0, 0) 95%);
+}
+
+.styled-scrollbar::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(196, 127, 229, 0.25);
+  border-radius: 9999px;
+}

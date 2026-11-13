@@ -134,8 +134,20 @@ const runCodeController = asyncHandler(async (req: Request, res: Response) => {
         throw new ApiError(400, "No sample test cases available to run.");
     }
 
+    // Check if problem has a driver harness for this language
+    const problem = await prisma.problem.findUnique({
+        where: { id: problemId },
+        select: { driverCode: true }
+    });
+
+    const driverCodeMap = (problem?.driverCode as Record<string, string>) || {};
+    const driver = driverCodeMap[language];
+    const codeToExecute = driver && typeof driver === "string" && driver.trim().length > 0
+        ? `${code}\n\n// --- HIDDEN DRIVER HARNESS ---\n${driver}`
+        : code;
+
     const limits = getLanguageLimits(language as Language);
-    const result = await runSampleTestsDetailed(code, language as Language, tests, limits);
+    const result = await runSampleTestsDetailed(codeToExecute, language as Language, tests, limits);
 
     return res.status(200).json({
         success: true,

@@ -25,6 +25,7 @@ const getProblemsForContest = async (contestId: string, startsAt: Date, endsAt: 
             statement: true,
             points: true,
             type: true,
+            starterCode: true,
             testCases: {
                 where: { isSample: true },
                 orderBy: { position: "asc" },

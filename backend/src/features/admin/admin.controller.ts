@@ -7,7 +7,7 @@ import asyncHandler from "../../utils/asyncHandler.js";
 export const createProblem = asyncHandler(async (req: Request, res: Response) => {
     // 1. Extract params and middleware payload
     const membership = (req as any).membership;
-    const { number, title, statement, points, type = "coding", testCases } = req.body;
+    const { number, title, statement, points, type = "coding", testCases, starterCode, driverCode } = req.body;
 
     // 2. Strict Role Check: Must be a moderator
     // (If platform admin is allowed, ensure requireSession handles that logic)
@@ -29,13 +29,23 @@ export const createProblem = asyncHandler(async (req: Request, res: Response) =>
         throw new ApiError(400, "A problem must have at least one hidden test case.");
     }
 
+    if (!starterCode || typeof starterCode !== "object") {
+        throw new ApiError(400, "starterCode object is required for all supported languages.");
+    }
+
+    if (!driverCode || typeof driverCode !== "object") {
+        throw new ApiError(400, "driverCode object is required for all supported languages.");
+    }
+
     // 5. Execute Service (Using the contestId already verified by middleware)
     const problem = await createProblemWithTests(membership.contestId, { 
         number, 
         title, 
         statement, 
         points, 
-        type 
+        type,
+        starterCode,
+        driverCode
     }, testCases);
 
     return res.status(201).json({ 

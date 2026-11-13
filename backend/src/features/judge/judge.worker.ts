@@ -58,13 +58,20 @@ export async function startJudgeWorker() {
                 }, HARD_TIMEOUT_MS);
             });
 
-            // 7. Run the tests, but abort if the 120-second timer finishes first
+            // 7. Check if problem has a driver harness for this language
+            const driverCodeMap = (submission.problem.driverCode as Record<string, string>) || {};
+            const driver = driverCodeMap[submission.language];
+            const codeToExecute = driver && typeof driver === "string" && driver.trim().length > 0
+                ? `${submission.code}\n\n// --- HIDDEN DRIVER HARNESS ---\n${driver}`
+                : submission.code;
+
+            // 8. Run the tests, but abort if the 120-second timer finishes first
             const result = await Promise.race([
-                runTests(submission.code, submission.language, tests, limits),
+                runTests(codeToExecute, submission.language, tests, limits),
                 timeoutPromise
             ]);
 
-            // 8. Save the final results to the database atomically
+            // 9. Save the final results to the database atomically
             await prisma.$transaction(async (tx) => {
                 
                 // Update the submission status

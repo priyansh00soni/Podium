@@ -14,6 +14,8 @@ export const createProblemWithTests = async (
             statement: problemData.statement,
             points: problemData.points,
             type: problemData.type,
+            starterCode: problemData.starterCode ?? {},
+            driverCode: problemData.driverCode ?? {},
             status: "active", // Default status for new problems
             
             // Map over the array to create the nested test cases
@@ -30,6 +32,7 @@ export const createProblemWithTests = async (
         select: {
             id: true,
             title: true,
+            starterCode: true,
             testCases: {
                 select: { 
                     id: true, 
