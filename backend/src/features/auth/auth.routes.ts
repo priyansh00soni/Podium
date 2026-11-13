@@ -17,7 +17,6 @@ router.get("/auth/google/admin", startAdminLoginController);
 router.get("/c/:slug/auth/google", startLoginController);
 router.get("/login", loginController);
 router.post("/logout", logoutController);
-router.post("/c/:slug/auth/logout", logoutController);
 
 // Profile inspection
 router.get("/me", getPlatformMeController);
