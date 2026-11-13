@@ -107,11 +107,11 @@ const runCodeController = asyncHandler(async (req: Request, res: Response) => {
     }
 
     // Invariant: One-pending-action rule (cannot run code while judging a submission)
-    if (membership?.contestId && membership?.userId) {
+    if (membership?.contestId && membership?.id) {
         const pending = await prisma.submission.findFirst({
             where: {
                 contestId: membership.contestId,
-                userId: membership.userId,
+                participantId: membership.id,
                 status: { in: ["queued", "judging"] }
             }
         });
