@@ -47,10 +47,11 @@ const loginController = asyncHandler(async (req: Request, res: Response) => {
         userAgent: req.get("user-agent") ?? "",
     });
 
+    // CRITICAL FIX: Cross-origin cookies require sameSite: "none" and secure: true
     const cookieOptions = {
         httpOnly: true,
-        sameSite: "lax" as const,
-        secure: process.env.NODE_ENV === "production",
+        sameSite: "none" as const,
+        secure: true,
         maxAge: 12 * 60 * 60 * 1000,
         path: "/",
     };
@@ -125,8 +126,16 @@ const logoutController = asyncHandler(async (req: Request, res: Response) => {
         await prisma.session.deleteMany({ where: { id: sessionId } });
     }
 
-    res.clearCookie("sessionId", { path: "/" });
-    res.clearCookie("sid_platform", { path: "/" });
+    // CRITICAL FIX: To delete a cross-origin cookie, the clear command MUST match the secure/sameSite flags
+    const clearCookieOptions = { 
+        path: "/", 
+        sameSite: "none" as const, 
+        secure: true 
+    };
+
+    res.clearCookie("sessionId", clearCookieOptions);
+    res.clearCookie("sid_platform", clearCookieOptions);
+    
     return res.status(200).json({ success: true, message: "Logged out successfully." });
 });
 
