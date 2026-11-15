@@ -19,6 +19,10 @@ const createEventController = asyncHandler(async (req: Request, res: Response) =
     }
 
     const event = await createIntegrityEvent(membership, type as EventType);
+    if (!event) {
+        // Return 202 Accepted so the frontend doesn't show an error for background telemetry
+        return res.status(202).json({ success: true, message: "Event logged" });
+    }
     return res.status(201).json({ success: true, data: { id: event.id.toString() } });
 });
 
