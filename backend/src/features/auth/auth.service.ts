@@ -71,17 +71,22 @@ const resolveContestParticipant = async (user: User, contest: Contest, sessionId
 
     // 2. Super admin gets automatic moderator access to all contests
     if (user.platformRole === "admin") {
-        if (!participant) {
-            participant = await prisma.contestParticipant.create({
-                data: {
-                    contestId: contest.id,
-                    userId: user.id,
-                    role: "moderator",
-                    activeSessionId: sessionId
-                },
-                include: { user: true }
-            });
-        }
+        participant = await prisma.contestParticipant.upsert({
+            where: { contestId_userId: { contestId: contest.id, userId: user.id } },
+            update: {
+                role: "moderator",
+                activeSessionId: sessionId,
+                deletedAt: null,
+                disqualifiedAt: null
+            },
+            create: {
+                contestId: contest.id,
+                userId: user.id,
+                role: "moderator",
+                activeSessionId: sessionId
+            },
+            include: { user: true }
+        });
         return participant;
     }
 
@@ -92,14 +97,19 @@ const resolveContestParticipant = async (user: User, contest: Contest, sessionId
                 where: { id: participant.id },
                 data: { activeSessionId: sessionId }
             });
+            participant.activeSessionId = sessionId;
         }
         return participant;
     }
 
     // 4. Model 2: Open Contest (any signed-in user automatically enrolled upon entering)
     if (contest.accessType === "open") {
-        participant = await prisma.contestParticipant.create({
-            data: {
+        participant = await prisma.contestParticipant.upsert({
+            where: { contestId_userId: { contestId: contest.id, userId: user.id } },
+            update: {
+                activeSessionId: sessionId
+            },
+            create: {
                 contestId: contest.id,
                 userId: user.id,
                 role: "participant",
@@ -119,8 +129,12 @@ const resolveContestParticipant = async (user: User, contest: Contest, sessionId
         throw new ApiError(403, "This is a private contest. You are not on the registration list.");
     }
 
-    participant = await prisma.contestParticipant.create({
-        data: {
+    participant = await prisma.contestParticipant.upsert({
+        where: { contestId_userId: { contestId: contest.id, userId: user.id } },
+        update: {
+            activeSessionId: sessionId
+        },
+        create: {
             contestId: contest.id,
             userId: user.id,
             role: "participant",

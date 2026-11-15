@@ -6,7 +6,7 @@ import { dbLogger } from '../utils/logger.js';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 15,
+  max: 8,
   min: 2,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

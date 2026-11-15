@@ -7,7 +7,10 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL environment variable is missing');
 }
 
-export const boss = new PgBoss(databaseUrl);
+export const boss = new PgBoss({
+  connectionString: databaseUrl,
+  max: 4,
+});
 
 boss.on('error', (error) => {
      workerLogger.error(`PgBoss error: ${error instanceof Error ? error.name : 'unknown'}`);

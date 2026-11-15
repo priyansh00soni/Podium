@@ -8,7 +8,6 @@ const createIntegrityEvent = async (participant: EventParticipant, eventType: Ev
         data: {
             contestId: participant.contestId,
             participantId: participant.id,
-            userId: participant.userId,
             eventType
         },
         select: { id: true }
