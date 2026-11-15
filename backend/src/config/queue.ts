@@ -9,7 +9,7 @@ if (!databaseUrl) {
 
 export const boss = new PgBoss({
   connectionString: databaseUrl,
-  max: 4,
+  max: 5,
 });
 
 boss.on('error', (error) => {
